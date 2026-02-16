@@ -1,0 +1,7 @@
+{
+  "name": "EarnGram - Telegram Mini App Earning Bot",
+  "description": "A professional Telegram Mini App for earning rewards via video tasks, referrals, and daily bonuses, featuring a comprehensive user wallet and admin dashboard.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

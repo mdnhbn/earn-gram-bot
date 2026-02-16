@@ -1,0 +1,188 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>EarnGram Secure Player</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            background-color: #0f172a;
+            color: #f8fafc;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            margin: 0;
+        }
+        .video-container iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+        .blur-overlay {
+            display: none;
+            backdrop-filter: blur(12px);
+            background: rgba(15, 23, 42, 0.9);
+        }
+        .blur-overlay.active {
+            display: flex;
+        }
+        .timer-glow {
+            text-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div id="app" class="relative h-full flex flex-col">
+        <!-- Focus Warning Overlay -->
+        <div id="warning-overlay" class="blur-overlay fixed inset-0 z-50 flex-col items-center justify-center text-center p-6 transition-all duration-300">
+            <div class="bg-slate-800 p-8 rounded-3xl border-2 border-red-500 shadow-2xl shadow-red-500/20 max-w-xs scale-in">
+                <div class="text-6xl mb-4">⚠️</div>
+                <h1 class="text-2xl font-black text-white uppercase tracking-tighter mb-2">STRIKE ALERT</h1>
+                <p class="text-slate-400 text-sm mb-6">You left the secure zone. The timer is paused. Return now to avoid a ban!</p>
+                <div class="animate-bounce text-blue-400 font-bold">Waiting for focus...</div>
+            </div>
+        </div>
+
+        <!-- Video Player Section -->
+        <div class="flex-1 bg-black relative video-container" id="player-slot">
+            <!-- Dynamic Iframe will be injected here -->
+            <div id="loading" class="absolute inset-0 flex items-center justify-center bg-slate-900">
+                <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+        </div>
+
+        <!-- Control Bar -->
+        <div class="bg-slate-900 border-t border-slate-800 p-4 flex flex-col items-center gap-4">
+            <div id="timer-box" class="flex items-center gap-3 bg-slate-800 px-6 py-2 rounded-2xl border border-slate-700">
+                <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Remaining</span>
+                <span id="timer-display" class="text-2xl font-black text-blue-400 font-mono timer-glow">00:00</span>
+            </div>
+
+            <!-- Captcha Section (Hidden initially) -->
+            <div id="captcha-box" class="hidden w-full max-w-xs animate-in slide-in-from-bottom duration-500">
+                <div class="bg-blue-600/10 border border-blue-500/30 p-4 rounded-2xl text-center space-y-3">
+                    <p class="text-xs font-bold text-blue-400 uppercase">Solve to Claim Reward</p>
+                    <div class="flex items-center justify-center gap-3">
+                        <span id="math-problem" class="text-xl font-bold">5 + 3 = ?</span>
+                        <input type="number" id="captcha-input" class="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-center font-bold focus:border-blue-500 outline-none" placeholder="?">
+                    </div>
+                    <button id="claim-btn" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-600/20">
+                        Claim Reward
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const videoUrl = urlParams.get('url');
+        let timeLeft = parseInt(urlParams.get('time')) || 60;
+        
+        const timerDisplay = document.getElementById('timer-display');
+        const warningOverlay = document.getElementById('warning-overlay');
+        const playerSlot = document.getElementById('player-slot');
+        const captchaBox = document.getElementById('captcha-box');
+        const timerBox = document.getElementById('timer-box');
+        const mathProblem = document.getElementById('math-problem');
+        const captchaInput = document.getElementById('captcha-input');
+        const claimBtn = document.getElementById('claim-btn');
+
+        let isPaused = false;
+        let captchaAnswer = 0;
+
+        // 1. Detect Platform & Embed
+        function initPlayer() {
+            if (!videoUrl) {
+                playerSlot.innerHTML = '<div class="flex items-center justify-center h-full text-red-500">Invalid URL</div>';
+                return;
+            }
+
+            let embedHtml = '';
+            if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
+                const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+                const match = videoUrl.match(regExp);
+                const id = (match && match[2].length === 11) ? match[2] : '';
+                embedHtml = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1&mute=1" allow="autoplay; encrypted-media; fullscreen"></iframe>`;
+            } else if (videoUrl.includes('tiktok.com')) {
+                const id = videoUrl.split('/video/')[1]?.split('?')[0];
+                embedHtml = `<iframe src="https://www.tiktok.com/embed/v2/${id}" allow="fullscreen"></iframe>`;
+            } else if (videoUrl.includes('dailymotion.com')) {
+                const id = videoUrl.split('/video/')[1]?.split('?')[0];
+                embedHtml = `<iframe src="https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=1" allow="autoplay; fullscreen"></iframe>`;
+            } else {
+                embedHtml = `<iframe src="${videoUrl}" allow="autoplay; encrypted-media; fullscreen"></iframe>`;
+            }
+            playerSlot.innerHTML = embedHtml;
+        }
+
+        // 2. Timer Logic
+        const countdown = setInterval(() => {
+            if (!isPaused && timeLeft > 0) {
+                timeLeft--;
+                const mins = Math.floor(timeLeft / 60);
+                const secs = timeLeft % 60;
+                timerDisplay.innerText = `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+                
+                if (timeLeft === 0) {
+                    clearInterval(countdown);
+                    showCaptcha();
+                }
+            }
+        }, 1000);
+
+        // 3. Focus Monitoring (Strike System)
+        window.onblur = () => {
+            isPaused = true;
+            warningOverlay.classList.add('active');
+            window.parent.postMessage({ type: 'FOCUS_LOST' }, '*');
+        };
+
+        window.onfocus = () => {
+            isPaused = false;
+            warningOverlay.classList.remove('active');
+            window.parent.postMessage({ type: 'FOCUS_GAINED' }, '*');
+        };
+
+        // 4. Captcha Implementation
+        function showCaptcha() {
+            timerBox.classList.add('hidden');
+            captchaBox.classList.remove('hidden');
+            
+            const num1 = Math.floor(Math.random() * 10) + 1;
+            const num2 = Math.floor(Math.random() * 10) + 1;
+            captchaAnswer = num1 + num2;
+            mathProblem.innerText = `${num1} + ${num2} = ?`;
+            
+            if (window.Telegram?.WebApp) {
+                window.Telegram.WebApp.HapticFeedback.notificationOccurred('success');
+            }
+        }
+
+        // 5. Completion Signal
+        claimBtn.onclick = () => {
+            const userVal = parseInt(captchaInput.value);
+            if (userVal === captchaAnswer) {
+                // Signal to parent React app - No secret code needed
+                window.parent.postMessage({ type: 'CLAIM_TASK' }, '*');
+                
+                if (window.Telegram?.WebApp) {
+                    window.Telegram.WebApp.sendData(JSON.stringify({
+                        status: 'success',
+                        task_url: videoUrl
+                    }));
+                }
+            } else {
+                alert('Wrong answer! Try again.');
+                showCaptcha();
+                captchaInput.value = '';
+            }
+        };
+
+        initPlayer();
+    </script>
+</body>
+</html>
