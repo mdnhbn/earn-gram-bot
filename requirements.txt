@@ -1,6 +1,6 @@
-aiogram
+pyTelegramBotAPI
 pymongo
 python-dotenv
-requests
+flask
 motor
 dnspython
