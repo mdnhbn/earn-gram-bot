@@ -147,7 +147,10 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
       timerSeconds: parseInt(videoTaskForm.duration),
       rewardRiyal: parseFloat(videoTaskForm.reward),
       rewardCrypto: parseFloat(videoTaskForm.reward) / 10,
-      platform: videoTaskForm.platform as any
+      platform: videoTaskForm.platform as any,
+      status: 'active',
+      ownerId: currentUser.id,
+      budget: 1000 // Default budget for admin tasks
     };
     onAddTask(newTask);
     setVideoTaskForm({ title: '', url: '', duration: '15', reward: '1.00', platform: 'YouTube' });
@@ -164,7 +167,10 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
       durationSeconds: parseInt(adTaskForm.duration),
       rewardRiyal: parseFloat(adTaskForm.reward),
       rewardCrypto: parseFloat(adTaskForm.reward) / 10,
-      networkName: adTaskForm.network
+      networkName: adTaskForm.network,
+      status: 'active',
+      ownerId: currentUser.id,
+      budget: 1000 // Default budget for admin tasks
     };
     onAddAdTask(newAd);
     setAdTaskForm({ title: '', url: '', duration: '10', reward: '0.50', network: 'Monetag' });

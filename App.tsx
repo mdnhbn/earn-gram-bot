@@ -453,41 +453,37 @@ const App: React.FC = () => {
   const handleClaimBonus = async () => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
-      const response = await fetchWithTimeout(`${apiUrl}/api/update_balance`, {
+      const response = await fetchWithTimeout(`${apiUrl}/api/daily_bonus`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: currentUser.id,
-          amount: 1.00,
-          task_name: 'Daily Bonus'
+          user_id: currentUser.id
         })
       });
       
-      if (response.ok) {
-        const data = await response.json();
+      const data = await response.json();
+      
+      if (response.ok && data.status === 'success') {
+        const updatedUser = data.user;
         setUsers(prevUsers => {
           const updated = prevUsers.map((u) => u.id === currentUser.id ? { 
             ...u, 
-            balanceRiyal: data.balanceRiyal, 
-            totalEarningsRiyal: data.total_earnings_sar, 
-            dailyBonusLastClaim: new Date().toISOString() 
+            balanceRiyal: updatedUser.balanceRiyal, 
+            totalEarningsRiyal: updatedUser.totalEarningsRiyal, 
+            dailyBonusLastClaim: updatedUser.dailyBonusLastClaim 
           } : u);
           saveUsers(updated);
           return updated;
         });
+        addTransaction(currentUser.id, 1, 'SAR', 'EARNING', 'Daily Bonus');
+        TelegramService.showAlert('Daily Bonus Claimed! +1 SAR');
+      } else {
+        throw new Error(data.message || 'Failed to claim bonus');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to claim bonus on server:', error);
-      // Fallback to local update
-      setUsers(prevUsers => {
-        const updated = prevUsers.map((u) => u.id === currentUser.id ? { ...u, balanceRiyal: u.balanceRiyal + 1.00, totalEarningsRiyal: u.totalEarningsRiyal + 1.00, dailyBonusLastClaim: new Date().toISOString() } : u);
-        saveUsers(updated);
-        return updated;
-      });
+      throw error; // Let Home.tsx handle the error message
     }
-    
-    addTransaction(currentUser.id, 1, 'SAR', 'EARNING', 'Daily Bonus');
-    TelegramService.showAlert('Daily bonus claimed!');
   };
 
   const handleWithdrawRequest = (data: any) => {
@@ -591,8 +587,11 @@ const App: React.FC = () => {
       });
       
       if (res.ok) {
-        setTasks([...tasks, task]);
-        saveTasks([...tasks, task]);
+        setTasks(prev => {
+          const updated = [...prev, task];
+          saveTasks(updated);
+          return updated;
+        });
         if (cost !== undefined) fetchLiveStats(); // Refresh balance
       }
     } catch (e) {
@@ -630,8 +629,11 @@ const App: React.FC = () => {
       });
       
       if (res.ok) {
-        setAdTasks([...adTasks, ad]);
-        saveAdTasks([...adTasks, ad]);
+        setAdTasks(prev => {
+          const updated = [...prev, ad];
+          saveAdTasks(updated);
+          return updated;
+        });
         if (cost !== undefined) fetchLiveStats(); // Refresh balance
       }
     } catch (e) {

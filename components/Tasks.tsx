@@ -30,6 +30,9 @@ const Tasks: React.FC<TasksProps> = ({ tasks, submissions, currentUser, onStartT
   }
 
   const availableTasks = tasks.filter(task => {
+    // Admin sees everything for management/testing
+    if (currentUser.role === 'admin') return true;
+
     const isOwner = task.ownerId === currentUser.id;
     const isCompleted = submissions.some(s => s.taskId === task.id && s.status === TaskStatus.APPROVED);
     const completedCount = submissions.filter(s => s.taskId === task.id && s.status === TaskStatus.APPROVED).length;

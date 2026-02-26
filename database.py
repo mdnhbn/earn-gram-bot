@@ -346,6 +346,39 @@ def get_maintenance_settings():
         logger.error(f"Error fetching maintenance settings: {e}")
         return None
 
+def claim_daily_bonus(user_id):
+    """Check and process daily bonus (1 SAR)."""
+    try:
+        user = get_user(user_id)
+        if not user:
+            return False, "User not found"
+        
+        last_claim = user.get("dailyBonusLastClaim")
+        now = datetime.utcnow()
+        
+        if last_claim:
+            # last_claim might be a string or datetime depending on how it was saved
+            if isinstance(last_claim, str):
+                try:
+                    last_claim = datetime.fromisoformat(last_claim.replace('Z', '+00:00'))
+                except:
+                    last_claim = None
+            
+            if last_claim and (now - last_claim).total_seconds() < 24 * 3600:
+                return False, "Bonus already claimed today"
+        
+        # Process reward
+        reward = 1.0
+        process_reward(user_id, reward, "Daily Bonus")
+        
+        # Update last claim time
+        users_col.update_one({"id": user_id}, {"$set": {"dailyBonusLastClaim": now}})
+        
+        return True, "Daily Bonus Claimed! +1 SAR"
+    except Exception as e:
+        logger.error(f"Error claiming daily bonus for user {user_id}: {e}")
+        return False, "Server busy, try again later"
+
 def update_maintenance_settings(settings_data):
     """Update global maintenance and system settings."""
     try:

@@ -14,7 +14,7 @@ export default defineConfig(({ mode }) => {
         hmr: false,
         proxy: {
           '/api': {
-            target: 'http://0.0.0.0:8888',
+            target: 'http://127.0.0.1:8888',
             changeOrigin: true,
             secure: false,
           },

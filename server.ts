@@ -60,7 +60,7 @@ client.connect().then(() => {
 });
 
 // API Proxy to Python Backend (bot.py on port 8888)
-app.use('/api', proxy('http://0.0.0.0:8888', {
+app.use('/api', proxy('http://127.0.0.1:8888', {
   proxyReqPathResolver: (req) => {
     return '/api' + req.url;
   },

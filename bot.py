@@ -127,6 +127,34 @@ def api_maintenance():
         return jsonify(settings), 200
     return jsonify({}), 200
 
+@server.route('/api/daily_bonus', methods=['POST'])
+def api_daily_bonus():
+    data = request.json
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({"status": "error", "message": "Missing user_id"}), 400
+    
+    success, message = db.claim_daily_bonus(user_id)
+    if success:
+        user = db.get_user(user_id)
+        if user and '_id' in user:
+            user['_id'] = str(user['_id'])
+        return jsonify({"status": "success", "message": message, "user": user}), 200
+    return jsonify({"status": "error", "message": message}), 400
+
+@server.route('/api/verify', methods=['GET'])
+def api_verify():
+    user_id = request.args.get('user_id')
+    if not user_id:
+        return jsonify({"status": "error", "message": "Missing user_id"}), 400
+    
+    if is_subscribed(int(user_id)):
+        # Update user verification status in DB
+        db.users_col.update_one({"id": int(user_id)}, {"$set": {"isVerified": True}})
+        return jsonify({"status": "success", "message": "Verification successful"}), 200
+    
+    return jsonify({"status": "error", "message": "You haven't joined all channels yet!"}), 400
+
 @server.route('/api/<path:path>')
 def api_not_found(path):
     """Catch-all for undefined API routes to prevent returning HTML."""

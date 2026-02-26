@@ -77,6 +77,27 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
     }
   };
 
+  const [isClaiming, setIsClaiming] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+
+  const handleClaim = async () => {
+    if (!canClaimBonus || isClaiming) return;
+    
+    setIsClaiming(true);
+    setClaimError(null);
+    TelegramService.haptic('medium');
+    
+    try {
+      await onClaimBonus();
+      // Success is handled by parent updating user prop
+    } catch (err: any) {
+      setClaimError(err.message || 'Server busy, try again later');
+      setTimeout(() => setClaimError(null), 3000);
+    } finally {
+      setIsClaiming(false);
+    }
+  };
+
   return (
     <div className="p-4 animate-in fade-in duration-500 space-y-8 relative">
       {isSyncing && (
@@ -131,24 +152,33 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
       </div>
 
       {/* Daily Bonus Section */}
-      <div className="bg-slate-800/50 border border-dashed border-slate-700 p-5 rounded-2xl flex items-center justify-between">
+      <div className="bg-slate-800/50 border border-dashed border-slate-700 p-5 rounded-2xl flex items-center justify-between relative overflow-hidden">
+        {claimError && (
+          <div className="absolute inset-0 bg-red-900/90 flex items-center justify-center animate-in fade-in slide-in-from-bottom-2 duration-300 z-10">
+            <p className="text-white text-[10px] font-bold uppercase tracking-widest">{claimError}</p>
+          </div>
+        )}
         <div>
           <h3 className="font-semibold">Daily Bonus</h3>
           <p className="text-xs text-slate-400">Claim free SAR every 24h</p>
         </div>
         <button
-          disabled={!canClaimBonus}
-          onClick={() => {
-            TelegramService.haptic('medium');
-            onClaimBonus();
-          }}
-          className={`px-6 py-2 rounded-xl font-bold transition-all ${
-            canClaimBonus 
+          disabled={!canClaimBonus || isClaiming}
+          onClick={handleClaim}
+          className={`px-6 py-2 rounded-xl font-bold transition-all flex items-center gap-2 ${
+            canClaimBonus && !isClaiming
             ? 'bg-blue-500 hover:bg-blue-600 shadow-lg shadow-blue-500/30' 
             : 'bg-slate-700 text-slate-500 cursor-not-allowed'
           }`}
         >
-          {canClaimBonus ? 'Claim' : 'Locked'}
+          {isClaiming ? (
+            <>
+              <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              Processing...
+            </>
+          ) : (
+            canClaimBonus ? 'Claim' : 'Locked'
+          )}
         </button>
       </div>
 

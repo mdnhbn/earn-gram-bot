@@ -11,54 +11,46 @@ interface VerificationProps {
 const Verification: React.FC<VerificationProps> = ({ channels, onVerify }) => {
   const [isChecking, setIsChecking] = useState(false);
 
+  const [error, setError] = useState<string | null>(null);
+
   const handleJoin = (channel: string) => {
     try {
       const handle = channel.startsWith('@') ? channel.substring(1) : channel;
       const url = `https://t.me/${handle}`;
       
-      // Use Telegram's native link opener if available
       TelegramService.openTelegramLink(url);
       TelegramService.haptic('light');
     } catch (e) {
       console.error('Failed to open link:', e);
-      // Fallback
       window.open(`https://t.me/${channel.replace('@', '')}`, '_blank');
     }
   };
 
   const checkMembership = async () => {
     setIsChecking(true);
+    setError(null);
     TelegramService.haptic('medium');
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
       const userId = TelegramService.getUser().id;
       
-      // Try to verify with backend
       const response = await fetchWithTimeout(`${apiUrl}/api/verify?user_id=${userId}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        if (data.status === 'success') {
-          onVerify();
-          return;
-        }
+      const data = await response.json();
+
+      if (response.ok && data.status === 'success') {
+        TelegramService.showAlert('Verification successful!');
+        onVerify();
+      } else {
+        setError(data.message || 'You haven\'t joined all channels yet!');
+        TelegramService.haptic('heavy');
       }
-      
-      // If backend fails or returns error, use mock success for preview/demo purposes
-      console.warn('Backend verification failed or unreachable, using mock success for demo.');
-      setTimeout(() => {
-        onVerify();
-        setIsChecking(false);
-      }, 1500);
-      
     } catch (error) {
-      console.warn('Verification API error, falling back to mock success:', error);
-      // Fallback for preview environment
-      setTimeout(() => {
-        onVerify();
-        setIsChecking(false);
-      }, 1500);
+      console.error('Verification API error:', error);
+      setError('Server busy, try again later');
+      TelegramService.haptic('heavy');
+    } finally {
+      setIsChecking(false);
     }
   };
 
@@ -73,6 +65,11 @@ const Verification: React.FC<VerificationProps> = ({ channels, onVerify }) => {
       </header>
 
       <div className="flex-1 space-y-3">
+        {error && (
+          <div className="bg-red-500/10 border border-red-500/30 p-3 rounded-xl text-center animate-in slide-in-from-top-2 duration-300">
+            <p className="text-red-400 text-[10px] font-bold uppercase tracking-widest">{error}</p>
+          </div>
+        )}
         <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest ml-1">Mandatory Subscriptions</p>
         <div className="space-y-2">
           {channels.map((channel, idx) => (
