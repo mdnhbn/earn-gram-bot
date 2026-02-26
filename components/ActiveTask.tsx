@@ -46,6 +46,18 @@ const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaus
     const params = new URLSearchParams();
     params.append('url', task.url);
     params.append('time', duration.toString());
+    
+    // Pass ad scripts from maintenance settings
+    const settings = localStorage.getItem('earngram_maintenance_settings');
+    if (settings) {
+      const parsed = JSON.parse(settings);
+      if (parsed.headerAdScript) params.append('headerAd', parsed.headerAdScript);
+      if (parsed.footerAdScript) params.append('footerAd', parsed.footerAdScript);
+    }
+
+    if (isVideoTask) {
+      params.append('platform', (task as Task).platform);
+    }
     return `${PLAYER_PATH}?${params.toString()}`;
   };
 

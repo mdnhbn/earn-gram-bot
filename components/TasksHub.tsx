@@ -19,6 +19,7 @@ interface TasksHubProps {
   isMaintenanceAds: boolean;
   isMaintenancePromote: boolean;
   onGoToDeposit: () => void;
+  isSyncing?: boolean;
 }
 
 const TasksHub: React.FC<TasksHubProps> = ({
@@ -34,7 +35,8 @@ const TasksHub: React.FC<TasksHubProps> = ({
   isMaintenanceVideos,
   isMaintenanceAds,
   isMaintenancePromote,
-  onGoToDeposit
+  onGoToDeposit,
+  isSyncing
 }) => {
   const [subTab, setSubTab] = useState<'videos' | 'ads' | 'promote'>('videos');
 
@@ -75,6 +77,7 @@ const TasksHub: React.FC<TasksHubProps> = ({
             currentUser={user} 
             onStartTask={onStartTask} 
             isMaintenance={isMaintenanceVideos}
+            isSyncing={isSyncing}
           />
         )}
         {subTab === 'ads' && (

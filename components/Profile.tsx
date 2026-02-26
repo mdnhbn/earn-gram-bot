@@ -1,14 +1,17 @@
 
 import React from 'react';
-import { User } from '../types';
+import { User, MaintenanceSettings } from '../types';
 import { TelegramService } from '../services/telegram';
 
 interface ProfileProps {
   user: User;
+  maintenanceSettings: MaintenanceSettings;
+  onNavigate?: (tab: string) => void;
 }
 
-const Profile: React.FC<ProfileProps> = ({ user }) => {
+const Profile: React.FC<ProfileProps> = ({ user, maintenanceSettings, onNavigate }) => {
   const referralLink = `https://t.me/EarnGramBot?start=${user.id}`;
+  const isDev = !user.id || user.id === 12345678 || user.id === 929198867;
 
   const copyRefLink = () => {
     navigator.clipboard.writeText(referralLink);
@@ -16,23 +19,37 @@ const Profile: React.FC<ProfileProps> = ({ user }) => {
     TelegramService.haptic('light');
   };
 
+  const handleOpenAdmin = () => {
+    TelegramService.haptic('heavy');
+    onNavigate?.('admin');
+  };
+
   const handleSupport = () => {
     TelegramService.haptic('medium');
-    TelegramService.openTelegramLink('https://t.me/EarnGramSupport'); // Replace with your actual support username
+    // Opens the support chat directly in Telegram
+    TelegramService.openTelegramLink(maintenanceSettings.supportLink || 'https://t.me/EarnGramSupport'); 
   };
 
   const handleTOS = () => {
     TelegramService.haptic('medium');
+    // Shows a native Telegram popup with the app rules
     TelegramService.showPopup({
       title: 'Terms of Service',
-      message: 'Welcome to EarnGram! To keep the platform fair, please follow these rules:\n\n1. No Multi-Accounts: Only one account per person/IP is allowed.\n2. Security Strikes: Leaving the task player during a countdown results in a strike.\n3. Ban Policy: Reaching 3 strikes results in a permanent account ban.\n4. Payments: Withdrawals are processed within 24-48 hours.\n5. Automated Tools: Any use of scripts or bots is strictly forbidden.',
-      buttons: [{ type: 'close', text: 'I Understand' }]
+      message: maintenanceSettings.tosContent || 'Welcome to EarnGram! Please follow the rules.',
+      buttons: [{ type: 'ok', text: 'I Agree & Understand' }]
     });
   };
 
   const handleReportIssue = () => {
     TelegramService.haptic('heavy');
-    TelegramService.openTelegramLink('https://t.me/EarnGramSupportBot'); // Replace with your reporting bot link
+    // Prompt user to report via support bot or alert
+    TelegramService.showConfirm('Would you like to open the Support Bot to report an issue?', (ok) => {
+      if (ok) {
+        TelegramService.openTelegramLink(maintenanceSettings.reportLink || 'https://t.me/EarnGramSupportBot');
+      } else {
+        TelegramService.showAlert('You can also email us at support@earngram.protocol');
+      }
+    });
   };
 
   return (
@@ -102,6 +119,19 @@ const Profile: React.FC<ProfileProps> = ({ user }) => {
           <span className="text-sm font-bold text-red-400">Report an Issue</span>
           <span className="text-red-500 text-xs">⚠️</span>
         </button>
+
+        {isDev && (
+          <button 
+            onClick={handleOpenAdmin}
+            className="w-full text-left bg-blue-900/20 hover:bg-blue-900/30 px-6 py-4 rounded-2xl flex justify-between items-center border border-blue-900/30 transition-all active:scale-[0.98] mt-6"
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-xl">⚙️</span>
+              <span className="text-sm font-bold text-blue-400">Open Admin Panel (Dev Only)</span>
+            </div>
+            <span className="text-blue-500 text-xs">→</span>
+          </button>
+        )}
       </div>
     </div>
   );

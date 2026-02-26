@@ -2,81 +2,35 @@
 import { User, Task, AdTask, AdView, TaskSubmission, TaskStatus, WithdrawalRequest, MaintenanceSettings, Transaction } from './types';
 
 // GLOBAL CONFIGURATION
-export const ADMIN_TELEGRAM_ID = 12345678; // Replace with your actual Telegram User ID
+export const ADMIN_TELEGRAM_ID = 929198867; // Replace with your actual Telegram User ID
 
 // Initial Mock Data
-const DEFAULT_TASKS: Task[] = [
-  {
-    id: 't1',
-    title: 'Watch New Tech Review',
-    platform: 'YouTube',
-    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
-    rewardRiyal: 10,
-    rewardCrypto: 0.0005,
-    timerSeconds: 15
-  },
-  {
-    id: 't2',
-    title: 'Crypto Market Update',
-    platform: 'TikTok',
-    url: 'https://www.tiktok.com/@tiktok/video/7106364024467328261',
-    rewardRiyal: 5,
-    rewardCrypto: 0.0002,
-    timerSeconds: 10
-  }
-];
+const DEFAULT_TASKS: Task[] = [];
 
-const DEFAULT_AD_TASKS: AdTask[] = [
-  {
-    id: 'ad1',
-    title: 'Visit Partner Site',
-    url: 'https://example.com/ad1',
-    rewardRiyal: 0.5,
-    rewardCrypto: 0.00001,
-    durationSeconds: 10
-  },
-  {
-    id: 'ad2',
-    title: 'Explore New Game',
-    url: 'https://example.com/ad2',
-    rewardRiyal: 0.8,
-    rewardCrypto: 0.00002,
-    durationSeconds: 15
-  }
-];
+const DEFAULT_AD_TASKS: AdTask[] = [];
 
 export const MOCK_USER: User = {
-  id: 12345678,
-  username: 'DemoUser',
-  balanceRiyal: 150.50,
-  balanceCrypto: 0.00245,
-  totalEarningsRiyal: 450.75,
-  referrals: 12,
-  role: 'admin',
+  id: 0,
+  username: 'Loading...',
+  balanceRiyal: 0,
+  balanceCrypto: 0,
+  totalEarningsRiyal: 0,
+  referrals: 0,
+  role: 'user',
   isBanned: false,
   warningCount: 0,
   isVerified: false
 };
 
-const LEADERBOARD_USERS: User[] = [
-  { id: 98765432, username: 'TopG_98', balanceRiyal: 1200, balanceCrypto: 0.5, totalEarningsRiyal: 2500, referrals: 150, isBanned: false, role: 'user', warningCount: 0, isVerified: true },
-  { id: 11223344, username: 'EarnMaster', balanceRiyal: 850, balanceCrypto: 0.2, totalEarningsRiyal: 1800, referrals: 89, isBanned: false, role: 'user', warningCount: 0, isVerified: true },
-  { id: 55667788, username: 'CryptoKing', balanceRiyal: 400, balanceCrypto: 1.2, totalEarningsRiyal: 1650, referrals: 45, isBanned: false, role: 'user', warningCount: 0, isVerified: true },
-  { id: 99887766, username: 'RiyalRich', balanceRiyal: 750, balanceCrypto: 0.1, totalEarningsRiyal: 1400, referrals: 30, isBanned: false, role: 'user', warningCount: 0, isVerified: true },
-  { id: 44332211, username: 'TaskPro', balanceRiyal: 300, balanceCrypto: 0.05, totalEarningsRiyal: 1100, referrals: 25, isBanned: false, role: 'user', warningCount: 0, isVerified: true },
-  { id: 77889900, username: 'QuickEarn', balanceRiyal: 150, balanceCrypto: 0.02, totalEarningsRiyal: 950, referrals: 18, isBanned: false, role: 'user', warningCount: 0, isVerified: true },
-  { id: 22446688, username: 'DollarZ', balanceRiyal: 90, balanceCrypto: 0.01, totalEarningsRiyal: 800, referrals: 12, isBanned: false, role: 'user', warningCount: 0, isVerified: true },
-  { id: 33557799, username: 'BotHunter', balanceRiyal: 45, balanceCrypto: 0.005, totalEarningsRiyal: 650, referrals: 8, isBanned: false, role: 'user', warningCount: 0, isVerified: true },
-  { id: 88775544, username: 'StarUser', balanceRiyal: 200, balanceCrypto: 0.03, totalEarningsRiyal: 550, referrals: 5, isBanned: false, role: 'user', warningCount: 0, isVerified: true },
-];
+const LEADERBOARD_USERS: User[] = [];
 
-export const isUserAdmin = (userId: number): boolean => {
+export const isUserAdmin = (userId: number | undefined | string): boolean => {
   return userId === ADMIN_TELEGRAM_ID;
 };
 
 export const getUsers = (): User[] => {
   const data = localStorage.getItem('earngram_users');
-  if (!data) return [MOCK_USER, ...LEADERBOARD_USERS];
+  if (!data) return [];
   return JSON.parse(data);
 };
 
@@ -175,7 +129,17 @@ export const getMaintenanceSettings = (): MaintenanceSettings => {
       supportUsername: 'YourSupportUsername'
     },
     boostAdLink: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', // Functional placeholder
-    boostRewardRiyal: 0.05
+    boostRewardRiyal: 0.05,
+    headerAdScript: '',
+    footerAdScript: '',
+    supportLink: 'https://t.me/EarnGramSupport',
+    tosContent: 'Welcome to EarnGram! To maintain a fair ecosystem, please adhere to these rules:\n\n' +
+               '• NO MULTI-ACCOUNTS: One account per person/device. Violators are permanently banned.\n' +
+               '• 3-STRIKE POLICY: Leaving tasks early or using VPNs adds strikes. 3 strikes = Ban.\n' +
+               '• WITHDRAWALS: Processed within 24-72 hours after verification.\n' +
+               '• FAIR PLAY: Use of automation, scripts, or bots will result in immediate termination.',
+    reportLink: 'https://t.me/EarnGramSupportBot',
+    depositInstructions: '1. Copy the wallet address or bank details below.\n2. Transfer the desired amount.\n3. Take a screenshot of the successful transaction.\n4. Click "Contact Support" and send the screenshot with your User ID.'
   };
 };
 

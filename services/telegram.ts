@@ -5,27 +5,30 @@ declare global {
   }
 }
 
-const tg = window.Telegram?.WebApp;
+const getTg = () => (typeof window !== 'undefined' ? window.Telegram?.WebApp : undefined);
 
 export const TelegramService = {
   init: () => {
     try {
+      const tg = getTg();
       tg?.ready();
       tg?.expand();
     } catch (e) {
-      console.error('Telegram WebApp init error:', e);
+      console.warn('Telegram WebApp init error:', e);
     }
   },
   
   getUser: () => {
-    return tg?.initDataUnsafe?.user || { id: 12345678, username: 'Guest' };
+    const tg = getTg();
+    return tg?.initDataUnsafe?.user || { id: 0, username: 'Guest' };
   },
 
   close: () => {
-    tg?.close();
+    getTg()?.close();
   },
 
   showAlert: (message: string) => {
+    const tg = getTg();
     if (tg?.isVersionAtLeast && tg.isVersionAtLeast('6.2')) {
       tg.showAlert(message);
     } else {
@@ -34,6 +37,7 @@ export const TelegramService = {
   },
 
   showConfirm: (message: string, callback: (ok: boolean) => void) => {
+    const tg = getTg();
     if (tg?.isVersionAtLeast && tg.isVersionAtLeast('6.2')) {
       tg.showConfirm(message, callback);
     } else {
@@ -43,6 +47,7 @@ export const TelegramService = {
   },
 
   showPopup: (params: { title?: string; message: string; buttons?: any[] }) => {
+    const tg = getTg();
     if (tg?.isVersionAtLeast && tg.isVersionAtLeast('6.2')) {
       tg.showPopup(params);
     } else {
@@ -51,14 +56,21 @@ export const TelegramService = {
   },
 
   openTelegramLink: (url: string) => {
+    const tg = getTg();
     if (tg?.openTelegramLink) {
-      tg.openTelegramLink(url);
+      try {
+        tg.openTelegramLink(url);
+      } catch (e) {
+        console.warn('Native openTelegramLink failed, using window.open');
+        window.open(url, '_blank');
+      }
     } else {
       window.open(url, '_blank');
     }
   },
 
   haptic: (style: 'light' | 'medium' | 'heavy' | 'rigid' | 'soft' = 'medium') => {
+    const tg = getTg();
     if (tg?.isVersionAtLeast && tg.isVersionAtLeast('6.1') && tg.HapticFeedback) {
       tg.HapticFeedback.impactOccurred(style);
     }
@@ -66,25 +78,25 @@ export const TelegramService = {
 
   MainButton: {
     setParams: (params: any) => {
-      if (tg?.MainButton) tg.MainButton.setParams(params);
+      getTg()?.MainButton?.setParams(params);
     },
     show: () => {
-      if (tg?.MainButton) tg.MainButton.show();
+      getTg()?.MainButton?.show();
     },
     hide: () => {
-      if (tg?.MainButton) tg.MainButton.hide();
+      getTg()?.MainButton?.hide();
     },
     onClick: (fn: () => void) => {
-      if (tg?.MainButton) tg.MainButton.onClick(fn);
+      getTg()?.MainButton?.onClick(fn);
     },
     offClick: (fn: () => void) => {
-      if (tg?.MainButton) tg.MainButton.offClick(fn);
+      getTg()?.MainButton?.offClick(fn);
     },
     showProgress: (leaveActive: boolean) => {
-      if (tg?.MainButton) tg.MainButton.showProgress(leaveActive);
+      getTg()?.MainButton?.showProgress(leaveActive);
     },
     hideProgress: () => {
-      if (tg?.MainButton) tg.MainButton.hideProgress();
+      getTg()?.MainButton?.hideProgress();
     },
   }
 };

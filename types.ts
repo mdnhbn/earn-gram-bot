@@ -22,6 +22,10 @@ export interface User {
   country?: string;
   preferredCurrency?: string;
   isVerified: boolean;
+  deviceId?: string;
+  lastIp?: string;
+  isFlagged?: boolean;
+  flagReason?: string;
 }
 
 export interface Transaction {
@@ -37,13 +41,14 @@ export interface Transaction {
 export interface Task {
   id: string;
   title: string;
-  platform: 'YouTube' | 'TikTok' | 'Dailymotion';
+  platform: 'YouTube' | 'TikTok' | 'Dailymotion' | 'Vimeo' | 'Facebook' | 'Custom';
   url: string;
   rewardRiyal: number;
   rewardCrypto: number;
   timerSeconds: number;
   ownerId?: number;
   budget?: number;
+  status?: 'pending_approval' | 'active' | 'rejected';
 }
 
 export interface AdTask {
@@ -53,8 +58,10 @@ export interface AdTask {
   rewardRiyal: number;
   rewardCrypto: number;
   durationSeconds: number;
+  networkName?: string; // For grouping (e.g., Monetag, Adsterra)
   ownerId?: number;
   budget?: number;
+  status?: 'pending_approval' | 'active' | 'rejected';
 }
 
 export interface AdView {
@@ -101,4 +108,10 @@ export interface MaintenanceSettings {
   paymentDetails: AdminPaymentDetails;
   boostAdLink: string;
   boostRewardRiyal: number;
+  headerAdScript?: string;
+  footerAdScript?: string;
+  supportLink: string;
+  tosContent: string;
+  reportLink: string;
+  depositInstructions: string;
 }

@@ -36,6 +36,9 @@
 </head>
 <body>
     <div id="app" class="relative h-full flex flex-col">
+        <!-- Global Header Ad Placeholder -->
+        <div id="header-ad-player" class="w-full flex justify-center bg-transparent min-h-[1px] overflow-visible relative z-50"></div>
+
         <!-- Focus Warning Overlay -->
         <div id="warning-overlay" class="blur-overlay fixed inset-0 z-50 flex-col items-center justify-center text-center p-6 transition-all duration-300">
             <div class="bg-slate-800 p-8 rounded-3xl border-2 border-red-500 shadow-2xl shadow-red-500/20 max-w-xs scale-in">
@@ -74,12 +77,17 @@
                     </button>
                 </div>
             </div>
+
+            <!-- Global Footer Ad Placeholder -->
+            <div id="footer-ad-player" class="w-full flex justify-center bg-transparent min-h-[1px] overflow-visible relative z-50 mt-2"></div>
         </div>
     </div>
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const videoUrl = urlParams.get('url');
+        const headerAdScript = urlParams.get('headerAd');
+        const footerAdScript = urlParams.get('footerAd');
         let timeLeft = parseInt(urlParams.get('time')) || 60;
         
         const timerDisplay = document.getElementById('timer-display');
@@ -91,6 +99,23 @@
         const captchaInput = document.getElementById('captcha-input');
         const claimBtn = document.getElementById('claim-btn');
 
+        // 0. Inject Ads
+        function injectAds() {
+            if (headerAdScript) {
+                const container = document.getElementById('header-ad-player');
+                const range = document.createRange();
+                const fragment = range.createContextualFragment(headerAdScript);
+                container.appendChild(fragment);
+            }
+            if (footerAdScript) {
+                const container = document.getElementById('footer-ad-player');
+                const range = document.createRange();
+                const fragment = range.createContextualFragment(footerAdScript);
+                container.appendChild(fragment);
+            }
+        }
+        injectAds();
+
         let isPaused = false;
         let captchaAnswer = 0;
 
@@ -101,18 +126,27 @@
                 return;
             }
 
+            const platform = urlParams.get('platform');
             let embedHtml = '';
-            if (videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
+
+            if (platform === 'YouTube' || videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
                 const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
                 const match = videoUrl.match(regExp);
                 const id = (match && match[2].length === 11) ? match[2] : '';
                 embedHtml = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1&mute=1" allow="autoplay; encrypted-media; fullscreen"></iframe>`;
-            } else if (videoUrl.includes('tiktok.com')) {
+            } else if (platform === 'TikTok' || videoUrl.includes('tiktok.com')) {
                 const id = videoUrl.split('/video/')[1]?.split('?')[0];
                 embedHtml = `<iframe src="https://www.tiktok.com/embed/v2/${id}" allow="fullscreen"></iframe>`;
-            } else if (videoUrl.includes('dailymotion.com')) {
+            } else if (platform === 'Dailymotion' || videoUrl.includes('dailymotion.com')) {
                 const id = videoUrl.split('/video/')[1]?.split('?')[0];
                 embedHtml = `<iframe src="https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=1" allow="autoplay; fullscreen"></iframe>`;
+            } else if (platform === 'Vimeo' || videoUrl.includes('vimeo.com')) {
+                const id = videoUrl.split('/').pop()?.split('?')[0];
+                embedHtml = `<iframe src="https://player.vimeo.com/video/${id}?autoplay=1&muted=1" allow="autoplay; fullscreen"></iframe>`;
+            } else if (platform === 'Facebook' || videoUrl.includes('facebook.com')) {
+                embedHtml = `<iframe src="https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(videoUrl)}&show_text=0&autoplay=1" allow="autoplay; encrypted-media; fullscreen"></iframe>`;
+            } else if (platform === 'Custom') {
+                embedHtml = `<video src="${videoUrl}" autoplay muted controls class="w-full h-full" oncontextmenu="return false;" controlsList="nodownload"></video>`;
             } else {
                 embedHtml = `<iframe src="${videoUrl}" allow="autoplay; encrypted-media; fullscreen"></iframe>`;
             }

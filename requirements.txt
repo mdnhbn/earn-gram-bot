@@ -1,6 +1,5 @@
-pyTelegramBotAPI
-pymongo
-python-dotenv
 flask
-motor
+flask-cors
+pymongo
+pyTelegramBotAPI
 dnspython

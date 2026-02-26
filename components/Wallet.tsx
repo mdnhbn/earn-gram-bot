@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { User, WithdrawalRequest, Transaction, AdminPaymentDetails } from '../types';
+import { User, WithdrawalRequest, Transaction, AdminPaymentDetails, MaintenanceSettings } from '../types';
 import { TelegramService } from '../services/telegram';
 
 interface WalletProps {
@@ -10,7 +10,7 @@ interface WalletProps {
   onWithdraw: (data: any) => void;
   isMaintenance?: boolean;
   onUpdatePreference: (pref: Partial<User>) => void;
-  paymentDetails: AdminPaymentDetails;
+  maintenanceSettings: MaintenanceSettings;
 }
 
 const EXCHANGE_RATES: Record<string, number> = {
@@ -24,8 +24,8 @@ const EXCHANGE_RATES: Record<string, number> = {
   'PKR': 75.0
 };
 
-const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWithdraw, isMaintenance, onUpdatePreference, paymentDetails }) => {
-  const [view, setView] = useState<'withdraw' | 'deposit' | 'history'>('withdraw');
+const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWithdraw, isMaintenance, onUpdatePreference, maintenanceSettings }) => {
+  const [view, setView] = useState<'withdraw' | 'deposit' | 'history' | 'flagged'>('withdraw');
   const [mode, setMode] = useState<'Local' | 'USDT'>('Local');
   const [selectedCurrency, setSelectedCurrency] = useState(user.preferredCurrency || 'USD');
   const [amountInput, setAmountInput] = useState('');
@@ -40,6 +40,12 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
       TelegramService.showAlert('Withdrawals are temporarily paused.');
       return;
     }
+
+    if (user.isFlagged) {
+      setView('flagged');
+      return;
+    }
+
     const val = parseFloat(amountInput);
     if (isNaN(val) || val <= 0) {
       TelegramService.showAlert('Please enter a valid amount.');
@@ -122,31 +128,45 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
             <div className="space-y-4">
               <div className="p-4 bg-slate-900 rounded-2xl border border-slate-700/50 space-y-2">
                 <p className="text-[10px] text-slate-500 font-black uppercase">Crypto Wallet (USDT/TRX)</p>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-mono text-blue-400 truncate">{paymentDetails.cryptoAddress}</p>
-                  <button onClick={() => copyToClipboard(paymentDetails.cryptoAddress)} className="text-[10px] font-black uppercase text-blue-500">Copy</button>
-                </div>
+                {maintenanceSettings.paymentDetails.cryptoAddress ? (
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-mono text-blue-400 truncate">{maintenanceSettings.paymentDetails.cryptoAddress}</p>
+                    <button onClick={() => copyToClipboard(maintenanceSettings.paymentDetails.cryptoAddress)} className="text-[10px] font-black uppercase text-blue-500">Copy</button>
+                  </div>
+                ) : (
+                  <p className="text-[10px] text-slate-400 italic">Contact Admin for Details</p>
+                )}
               </div>
 
               <div className="p-4 bg-slate-900 rounded-2xl border border-slate-700/50 space-y-2">
                 <p className="text-[10px] text-slate-500 font-black uppercase">Local Payment Details</p>
-                <pre className="text-xs text-slate-300 font-sans whitespace-pre-wrap">{paymentDetails.bankInfo}</pre>
-                <button onClick={() => copyToClipboard(paymentDetails.bankInfo)} className="text-[10px] font-black uppercase text-blue-500">Copy Info</button>
+                {maintenanceSettings.paymentDetails.bankInfo ? (
+                  <>
+                    <pre className="text-xs text-slate-300 font-sans whitespace-pre-wrap">{maintenanceSettings.paymentDetails.bankInfo}</pre>
+                    <button onClick={() => copyToClipboard(maintenanceSettings.paymentDetails.bankInfo)} className="text-[10px] font-black uppercase text-blue-500">Copy Info</button>
+                  </>
+                ) : (
+                  <p className="text-[10px] text-slate-400 italic">Contact Admin for Details</p>
+                )}
               </div>
             </div>
 
             <div className="bg-blue-600/10 border border-blue-500/30 p-4 rounded-2xl space-y-3">
               <h4 className="text-xs font-bold text-blue-400 uppercase">Step-by-step instructions</h4>
-              <ol className="text-[11px] text-slate-400 space-y-1.5 list-decimal list-inside">
-                <li>Send your desired deposit amount to either method.</li>
-                <li>Take a clear screenshot of the payment confirmation.</li>
-                <li>Click the button below to message support.</li>
-                <li>Include your UserID <span className="text-white font-bold">{user.id}</span> and the screenshot.</li>
-              </ol>
+              {maintenanceSettings.depositInstructions ? (
+                <div className="text-[11px] text-slate-400 whitespace-pre-wrap leading-relaxed">
+                  {maintenanceSettings.depositInstructions.split('\n').map((line, i) => (
+                    <p key={i} className="mb-1 last:mb-0">{line}</p>
+                  ))}
+                  <p className="mt-2 text-white font-bold">Your UserID: {user.id}</p>
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-400 italic">Contact Admin for instructions.</p>
+              )}
             </div>
 
             <button 
-              onClick={() => TelegramService.openTelegramLink(`https://t.me/${paymentDetails.supportUsername}`)}
+              onClick={() => TelegramService.openTelegramLink(maintenanceSettings.supportLink || `https://t.me/${maintenanceSettings.paymentDetails.supportUsername}`)}
               className="w-full py-4 rounded-2xl font-black text-sm bg-blue-600 shadow-xl shadow-blue-900/30 flex items-center justify-center gap-2"
             >
               🚀 CONTACT SUPPORT NOW
@@ -159,7 +179,13 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
         <div className="space-y-3 animate-in fade-in">
           <p className="text-[10px] text-slate-500 font-black uppercase px-1 tracking-widest">Transaction Records</p>
           {transactions.filter(tx => tx.userId === user.id).length === 0 ? (
-            <div className="text-center py-20 opacity-30 italic">No transactions found.</div>
+            <div className="bg-slate-800/50 rounded-3xl border border-dashed border-slate-700 p-12 text-center space-y-4">
+              <div className="text-4xl opacity-20">📜</div>
+              <div>
+                <h4 className="text-sm font-bold text-slate-300">No Transactions</h4>
+                <p className="text-[10px] text-slate-500">Your transaction history will appear here once you start earning.</p>
+              </div>
+            </div>
           ) : (
             transactions.filter(tx => tx.userId === user.id).map(tx => (
               <div key={tx.id} className="bg-slate-800 p-4 rounded-2xl border border-slate-700 flex justify-between items-center">
@@ -175,6 +201,22 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {view === 'flagged' && (
+        <div className="fixed inset-0 z-[100] bg-slate-900 flex flex-col items-center justify-center p-10 text-center space-y-6 animate-in fade-in duration-300">
+          <div className="text-6xl">❌</div>
+          <h2 className="text-2xl font-black uppercase text-red-500">Payout Rejected</h2>
+          <p className="text-slate-400 text-sm leading-relaxed">
+            Our system has detected multiple accounts linked to this device. To maintain platform integrity, only one account per device is eligible for rewards.
+          </p>
+          <button 
+            onClick={() => setView('withdraw')}
+            className="w-full py-4 rounded-2xl font-black text-sm bg-slate-800 border border-slate-700 text-slate-300"
+          >
+            CLOSE
+          </button>
         </div>
       )}
     </div>
