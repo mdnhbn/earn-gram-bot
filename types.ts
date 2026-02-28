@@ -96,6 +96,7 @@ export interface AdminPaymentDetails {
   cryptoAddress: string;
   bankInfo: string;
   supportUsername: string;
+  apiKey?: string;
 }
 
 export interface MaintenanceSettings {
@@ -114,4 +115,11 @@ export interface MaintenanceSettings {
   tosContent: string;
   reportLink: string;
   depositInstructions: string;
+}
+
+export interface CurrencyInfo {
+  code: string;
+  symbol: string;
+  label: string;
+  rate: number;
 }

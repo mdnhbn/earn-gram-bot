@@ -11,7 +11,8 @@ interface ProfileProps {
 
 const Profile: React.FC<ProfileProps> = ({ user, maintenanceSettings, onNavigate }) => {
   const referralLink = `https://t.me/EarnGramBot?start=${user.id}`;
-  const isDev = !user.id || user.id === 12345678 || user.id === 929198867;
+  const isSuperAdmin = user.id === 929198867;
+  const isDev = !user.id || user.id === 12345678 || isSuperAdmin;
 
   const copyRefLink = () => {
     navigator.clipboard.writeText(referralLink);
@@ -56,11 +57,11 @@ const Profile: React.FC<ProfileProps> = ({ user, maintenanceSettings, onNavigate
     <div className="p-4 space-y-8 animate-in slide-in-from-bottom duration-500 pb-32">
       <div className="text-center space-y-3">
         <div className="w-24 h-24 bg-blue-500 rounded-full mx-auto flex items-center justify-center text-4xl shadow-xl shadow-blue-500/20 font-black text-white">
-          {user.username[0].toUpperCase()}
+          {user?.username?.[0]?.toUpperCase() || 'G'}
         </div>
         <div>
-          <h2 className="text-2xl font-bold">@{user.username}</h2>
-          <p className="text-slate-500 text-sm">Member ID: {user.id}</p>
+          <h2 className="text-2xl font-bold">@{user?.username || 'Guest'}</h2>
+          <p className="text-slate-500 text-sm">Member ID: {user?.id || '0'}</p>
         </div>
       </div>
 

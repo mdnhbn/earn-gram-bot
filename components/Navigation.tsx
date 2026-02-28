@@ -19,7 +19,9 @@ const Navigation: React.FC<NavigationProps> = ({ currentTab, setTab, isAdmin }) 
     { id: 'profile', label: 'Profile', icon: '👤' },
   ];
 
-  if (isAdmin || isPreviewMode) {
+  const isSuperAdmin = tgUser.id === 929198867;
+
+  if (isSuperAdmin || isPreviewMode) {
     tabs.push({ id: 'admin', label: 'Admin', icon: '⚙️' });
   }
 

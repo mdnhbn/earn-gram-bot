@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { User, WithdrawalRequest, Transaction, AdminPaymentDetails, MaintenanceSettings } from '../types';
+import { User, WithdrawalRequest, Transaction, AdminPaymentDetails, MaintenanceSettings, CurrencyInfo } from '../types';
 import { TelegramService } from '../services/telegram';
+import { EXCHANGE_RATES } from '../constants';
 
 interface WalletProps {
   user: User;
@@ -11,25 +12,23 @@ interface WalletProps {
   isMaintenance?: boolean;
   onUpdatePreference: (pref: Partial<User>) => void;
   maintenanceSettings: MaintenanceSettings;
+  currencyInfo: CurrencyInfo;
 }
 
-const EXCHANGE_RATES: Record<string, number> = {
-  'SAR': 1.0,
-  'BDT': 31.5,
-  'INR': 22.1,
-  'USD': 0.27,
-  'USDT': 0.27,
-  'AED': 0.99,
-  'GBP': 0.21,
-  'PKR': 75.0
-};
-
-const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWithdraw, isMaintenance, onUpdatePreference, maintenanceSettings }) => {
+const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWithdraw, isMaintenance, onUpdatePreference, maintenanceSettings, currencyInfo }) => {
   const [view, setView] = useState<'withdraw' | 'deposit' | 'history' | 'flagged'>('withdraw');
   const [mode, setMode] = useState<'Local' | 'USDT'>('Local');
-  const [selectedCurrency, setSelectedCurrency] = useState(user.preferredCurrency || 'USD');
+  const [depositType, setDepositType] = useState<'auto' | 'manual'>('auto');
+  const [selectedCurrency, setSelectedCurrency] = useState(currencyInfo.code);
   const [amountInput, setAmountInput] = useState('');
   const [address, setAddress] = useState('');
+  const [txId, setTxId] = useState('');
+  const [senderNumber, setSenderNumber] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setSelectedCurrency(currencyInfo.code);
+  }, [currencyInfo.code]);
 
   const currentRate = useMemo(() => EXCHANGE_RATES[selectedCurrency] || EXCHANGE_RATES['USD'], [selectedCurrency]);
   const usdtRate = EXCHANGE_RATES['USDT'];
@@ -71,6 +70,45 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
     TelegramService.haptic('medium');
   };
 
+  const handleAutoDeposit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!amountInput || !txId || (mode === 'Local' && !senderNumber)) {
+      TelegramService.showAlert('Please fill all fields.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const endpoint = mode === 'USDT' ? '/api/deposit/crypto' : '/api/deposit/local';
+      const body = mode === 'USDT' 
+        ? { user_id: user.id, tx_id: txId, amount: parseFloat(amountInput) }
+        : { user_id: user.id, tx_id: txId, sender: senderNumber, amount: parseFloat(amountInput) };
+
+      const res = await fetch(`${apiUrl}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        TelegramService.showAlert(data.message || 'Deposit submitted successfully!');
+        setAmountInput('');
+        setTxId('');
+        setSenderNumber('');
+        setView('history');
+      } else {
+        TelegramService.showAlert(data.message || 'Failed to submit deposit.');
+      }
+    } catch (err) {
+      console.error(err);
+      TelegramService.showAlert('Network error. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     TelegramService.showAlert('Copied to clipboard!');
@@ -98,7 +136,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
           <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 space-y-5">
             <div className="flex justify-between items-center bg-slate-900 p-4 rounded-2xl">
               <div>
-                <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Available Balance</p>
+                <p className="text-[10px] text-slate-500 font-bold uppercase mb-1">Available Balance ({mode === 'Local' ? currencyInfo.label : 'USDT'})</p>
                 <p className="text-xl font-black">{mode === 'Local' ? `${(user.balanceRiyal * currentRate).toFixed(2)} ${selectedCurrency}` : `${user.balanceCrypto.toFixed(2)} USDT`}</p>
               </div>
               {mode === 'Local' && (
@@ -119,58 +157,124 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
 
       {view === 'deposit' && (
         <div className="space-y-6 animate-in slide-in-from-left">
+          <div className="bg-slate-800 p-1 rounded-2xl flex border border-slate-700">
+            <button onClick={() => setDepositType('auto')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${depositType === 'auto' ? 'bg-blue-600 shadow-lg' : 'text-slate-500'}`}>Fast Auto Deposit</button>
+            <button onClick={() => setDepositType('manual')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${depositType === 'manual' ? 'bg-blue-600 shadow-lg' : 'text-slate-500'}`}>Manual Support Deposit</button>
+          </div>
+
           <div className="bg-slate-800 p-6 rounded-3xl border border-slate-700 space-y-6">
             <header className="text-center">
-              <h3 className="text-lg font-bold">Manual Deposit</h3>
-              <p className="text-xs text-slate-400">Transfer funds and contact support for manual credit.</p>
+              <h3 className="text-lg font-bold">{depositType === 'auto' ? 'Automatic Deposit' : 'Manual Deposit'}</h3>
+              <p className="text-xs text-slate-400">
+                {depositType === 'auto' 
+                  ? 'Submit your transaction details for instant verification.' 
+                  : 'Transfer funds and contact support for manual credit.'}
+              </p>
             </header>
+
+            {depositType === 'auto' && (
+              <div className="bg-slate-800 p-1 rounded-2xl flex border border-slate-700 mb-4">
+                <button onClick={() => setMode('Local')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase ${mode === 'Local' ? 'bg-blue-600' : 'text-slate-500'}`}>Local (bKash/STC)</button>
+                <button onClick={() => setMode('USDT')} className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase ${mode === 'USDT' ? 'bg-blue-600' : 'text-slate-500'}`}>USDT (TRC20)</button>
+              </div>
+            )}
 
             <div className="space-y-4">
               <div className="p-4 bg-slate-900 rounded-2xl border border-slate-700/50 space-y-2">
-                <p className="text-[10px] text-slate-500 font-black uppercase">Crypto Wallet (USDT/TRX)</p>
-                {maintenanceSettings.paymentDetails.cryptoAddress ? (
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-mono text-blue-400 truncate">{maintenanceSettings.paymentDetails.cryptoAddress}</p>
-                    <button onClick={() => copyToClipboard(maintenanceSettings.paymentDetails.cryptoAddress)} className="text-[10px] font-black uppercase text-blue-500">Copy</button>
-                  </div>
+                <p className="text-[10px] text-slate-500 font-black uppercase">
+                  {mode === 'USDT' ? 'Crypto Wallet (USDT/TRX)' : 'Local Payment Details'}
+                </p>
+                {mode === 'USDT' ? (
+                  maintenanceSettings.paymentDetails.cryptoAddress ? (
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-mono text-blue-400 truncate">{maintenanceSettings.paymentDetails.cryptoAddress}</p>
+                      <button onClick={() => copyToClipboard(maintenanceSettings.paymentDetails.cryptoAddress)} className="text-[10px] font-black uppercase text-blue-500">Copy</button>
+                    </div>
+                  ) : (
+                    <p className="text-[10px] text-slate-400 italic">Contact Admin for Details</p>
+                  )
                 ) : (
-                  <p className="text-[10px] text-slate-400 italic">Contact Admin for Details</p>
-                )}
-              </div>
-
-              <div className="p-4 bg-slate-900 rounded-2xl border border-slate-700/50 space-y-2">
-                <p className="text-[10px] text-slate-500 font-black uppercase">Local Payment Details</p>
-                {maintenanceSettings.paymentDetails.bankInfo ? (
-                  <>
-                    <pre className="text-xs text-slate-300 font-sans whitespace-pre-wrap">{maintenanceSettings.paymentDetails.bankInfo}</pre>
-                    <button onClick={() => copyToClipboard(maintenanceSettings.paymentDetails.bankInfo)} className="text-[10px] font-black uppercase text-blue-500">Copy Info</button>
-                  </>
-                ) : (
-                  <p className="text-[10px] text-slate-400 italic">Contact Admin for Details</p>
+                  maintenanceSettings.paymentDetails.bankInfo ? (
+                    <>
+                      <pre className="text-xs text-slate-300 font-sans whitespace-pre-wrap">{maintenanceSettings.paymentDetails.bankInfo}</pre>
+                      <button onClick={() => copyToClipboard(maintenanceSettings.paymentDetails.bankInfo)} className="text-[10px] font-black uppercase text-blue-500">Copy Info</button>
+                    </>
+                  ) : (
+                    <p className="text-[10px] text-slate-400 italic">Contact Admin for Details</p>
+                  )
                 )}
               </div>
             </div>
 
-            <div className="bg-blue-600/10 border border-blue-500/30 p-4 rounded-2xl space-y-3">
-              <h4 className="text-xs font-bold text-blue-400 uppercase">Step-by-step instructions</h4>
-              {maintenanceSettings.depositInstructions ? (
-                <div className="text-[11px] text-slate-400 whitespace-pre-wrap leading-relaxed">
-                  {maintenanceSettings.depositInstructions.split('\n').map((line, i) => (
-                    <p key={i} className="mb-1 last:mb-0">{line}</p>
-                  ))}
-                  <p className="mt-2 text-white font-bold">Your UserID: {user.id}</p>
+            {depositType === 'auto' ? (
+              <form onSubmit={handleAutoDeposit} className="space-y-4">
+                <div className="space-y-3">
+                  <input 
+                    type="number" 
+                    step="any" 
+                    placeholder={`Amount in ${mode === 'Local' ? selectedCurrency : 'USDT'}`} 
+                    value={amountInput}
+                    onChange={e => setAmountInput(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm outline-none" 
+                    required 
+                  />
+                  {mode === 'Local' && (
+                    <input 
+                      type="text" 
+                      placeholder="Your Sender Number" 
+                      value={senderNumber}
+                      onChange={e => setSenderNumber(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm outline-none" 
+                      required 
+                    />
+                  )}
+                  <input 
+                    type="text" 
+                    placeholder="Transaction ID / Hash" 
+                    value={txId}
+                    onChange={e => setTxId(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm outline-none" 
+                    required 
+                  />
                 </div>
-              ) : (
-                <p className="text-[11px] text-slate-400 italic">Contact Admin for instructions.</p>
-              )}
-            </div>
+                <button 
+                  disabled={isSubmitting}
+                  className="w-full py-4 rounded-2xl font-black text-sm bg-blue-600 shadow-xl shadow-blue-900/30 flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      VERIFYING...
+                    </>
+                  ) : (
+                    'VERIFY TRANSACTION'
+                  )}
+                </button>
+              </form>
+            ) : (
+              <>
+                <div className="bg-blue-600/10 border border-blue-500/30 p-4 rounded-2xl space-y-3">
+                  <h4 className="text-xs font-bold text-blue-400 uppercase">Step-by-step instructions</h4>
+                  {maintenanceSettings.depositInstructions ? (
+                    <div className="text-[11px] text-slate-400 whitespace-pre-wrap leading-relaxed">
+                      {maintenanceSettings.depositInstructions.split('\n').map((line, i) => (
+                        <p key={i} className="mb-1 last:mb-0">{line}</p>
+                      ))}
+                      <p className="mt-2 text-white font-bold">Your UserID: {user.id}</p>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 italic">Contact Admin for instructions.</p>
+                  )}
+                </div>
 
-            <button 
-              onClick={() => TelegramService.openTelegramLink(maintenanceSettings.supportLink || `https://t.me/${maintenanceSettings.paymentDetails.supportUsername}`)}
-              className="w-full py-4 rounded-2xl font-black text-sm bg-blue-600 shadow-xl shadow-blue-900/30 flex items-center justify-center gap-2"
-            >
-              🚀 CONTACT SUPPORT NOW
-            </button>
+                <button 
+                  onClick={() => TelegramService.openTelegramLink(maintenanceSettings.supportLink || `https://t.me/${maintenanceSettings.paymentDetails.supportUsername}`)}
+                  className="w-full py-4 rounded-2xl font-black text-sm bg-blue-600 shadow-xl shadow-blue-900/30 flex items-center justify-center gap-2"
+                >
+                  🚀 CONTACT SUPPORT NOW
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { User } from '../types';
+import { User, CurrencyInfo } from '../types';
 import { TelegramService } from '../services/telegram';
 
 interface HomeProps {
@@ -11,11 +11,20 @@ interface HomeProps {
   onStartBoost: () => void;
   isSyncing?: boolean;
   onRefresh?: () => void;
+  currencyInfo: CurrencyInfo;
 }
 
-const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, onStartBoost, isSyncing, onRefresh }) => {
+const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, onStartBoost, isSyncing, onRefresh, currencyInfo }) => {
   const [canClaimBonus, setCanClaimBonus] = useState(false);
   const [boostCooldown, setBoostCooldown] = useState<string | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const clockTimer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(clockTimer);
+  }, []);
 
   useEffect(() => {
     // Daily Bonus Logic
@@ -91,11 +100,25 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
       await onClaimBonus();
       // Success is handled by parent updating user prop
     } catch (err: any) {
-      setClaimError(err.message || 'Server busy, try again later');
-      setTimeout(() => setClaimError(null), 3000);
+      // Check if it's a fetch error (likely backend unreachable in preview)
+      if (err.message === 'Failed to fetch' || err.name === 'TypeError' || err.message?.includes('network')) {
+        TelegramService.showAlert('Bonus system is ready! It will work once you are live on Telegram.');
+      } else {
+        setClaimError(err.message || 'Server busy, try again later');
+        setTimeout(() => setClaimError(null), 3000);
+      }
     } finally {
       setIsClaiming(false);
     }
+  };
+
+  const formatTime = (date: Date) => {
+    return date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: true
+    });
   };
 
   return (
@@ -118,27 +141,34 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
 
       <header className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl font-bold mb-1">Welcome, {user.username}!</h1>
+          <h1 className="text-2xl font-bold mb-1">Welcome, {user?.username || 'Guest'}!</h1>
           <p className="text-slate-400 text-sm">Grow your assets with EarnGram.</p>
         </div>
-        <button 
-          onClick={() => {
-            TelegramService.haptic('light');
-            onRefresh?.();
-          }}
-          className={`p-2 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors ${isSyncing ? 'animate-spin' : ''}`}
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
-        </button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="bg-slate-900/80 border border-blue-500/20 px-3 py-1.5 rounded-xl shadow-[0_0_15px_rgba(59,130,246,0.1)] backdrop-blur-sm">
+            <span className="font-mono text-blue-400 text-[10px] font-black tracking-widest">
+              {formatTime(currentTime)}
+            </span>
+          </div>
+          <button 
+            onClick={() => {
+              TelegramService.haptic('light');
+              onRefresh?.();
+            }}
+            className={`p-2 rounded-full bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition-colors ${isSyncing ? 'animate-spin' : ''}`}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+          </button>
+        </div>
       </header>
 
       {/* Balance Cards */}
       <div className="grid grid-cols-1 gap-4">
         <div className="bg-gradient-to-br from-blue-600 to-indigo-700 p-6 rounded-3xl shadow-xl shadow-blue-900/20">
-          <p className="text-blue-100 text-xs font-medium uppercase tracking-widest mb-1">Total Balance (Riyal)</p>
+          <p className="text-blue-100 text-xs font-medium uppercase tracking-widest mb-1">Total Balance ({currencyInfo.label})</p>
           <div className="flex items-baseline gap-2">
-            <h2 className="text-4xl font-bold">{(user.balanceRiyal || 0).toFixed(2)}</h2>
-            <span className="text-blue-200 text-sm">SAR</span>
+            <h2 className="text-4xl font-bold">{((user.balanceRiyal || 0) * currencyInfo.rate).toFixed(2)}</h2>
+            <span className="text-blue-200 text-sm">{currencyInfo.code}</span>
           </div>
         </div>
 

@@ -140,11 +140,13 @@
             } else if (platform === 'Dailymotion' || videoUrl.includes('dailymotion.com') || videoUrl.includes('dai.ly')) {
                 let id = '';
                 if (videoUrl.includes('dai.ly')) {
-                    id = videoUrl.split('dai.ly/')[1]?.split('?')[0];
+                    const parts = videoUrl.split('/');
+                    id = parts[parts.length - 1].split('?')[0];
                 } else {
                     id = videoUrl.split('/video/')[1]?.split('?')[0];
                 }
-                embedHtml = `<iframe src="https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=1" allow="autoplay; fullscreen"></iframe>`;
+                console.log('Video ID extracted:', id);
+                embedHtml = `<iframe src="https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=0" allow="autoplay; fullscreen"></iframe>`;
             } else if (platform === 'Vimeo' || videoUrl.includes('vimeo.com')) {
                 const id = videoUrl.split('/').pop()?.split('?')[0];
                 embedHtml = `<iframe src="https://player.vimeo.com/video/${id}?autoplay=1&muted=1" allow="autoplay; fullscreen"></iframe>`;

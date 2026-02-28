@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { User, Task, AdTask, AdView, TaskSubmission, WithdrawalRequest, TaskStatus, MaintenanceSettings, Transaction } from './types';
+import { User, Task, AdTask, AdView, TaskSubmission, WithdrawalRequest, TaskStatus, MaintenanceSettings, Transaction, CurrencyInfo } from './types';
 import { getCurrentUser, getTasks, saveTasks, getAdTasks, saveAdTasks, getAdViews, saveAdViews, getSubmissions, saveSubmissions, getWithdrawals, saveWithdrawals, getUsers, saveUsers, saveActiveTask, getActiveTask, getMaintenanceSettings, saveMaintenanceSettings, getTransactions, saveTransactions, ADMIN_TELEGRAM_ID, isUserAdmin } from './state';
+import { EXCHANGE_RATES, CURRENCY_LABELS } from './constants';
 import { fetchWithTimeout } from './services/api';
 import { TelegramService } from './services/telegram';
 import { SecurityService } from './services/security';
@@ -61,7 +62,45 @@ const App: React.FC = () => {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequest[]>(getWithdrawals());
   const [transactions, setTransactions] = useState<Transaction[]>(getTransactions());
   const [maintenance, setMaintenance] = useState<MaintenanceSettings>(getMaintenanceSettings());
+  const [currencyInfo, setCurrencyInfo] = useState<CurrencyInfo>({
+    code: 'SAR',
+    symbol: 'SAR',
+    label: 'RIYAL',
+    rate: 1.0
+  });
   
+  useEffect(() => {
+    const detectCurrency = async () => {
+      try {
+        const res = await fetch('https://ipapi.co/json/');
+        if (res.ok) {
+          const data = await res.json();
+          const code = data.currency || 'SAR';
+          const country = data.country_name || 'Unknown';
+          
+          let label = CURRENCY_LABELS[code] || code;
+          if (country === 'Bangladesh') label = 'TAKA';
+          if (country === 'India') label = 'RUPEE';
+          if (country === 'Pakistan') label = 'RUPEE';
+          
+          const rate = EXCHANGE_RATES[code] || 1.0;
+          
+          setCurrencyInfo({
+            code,
+            symbol: code,
+            label,
+            rate
+          });
+          
+          console.log(`Detected: ${country} (${code}), Rate: ${rate}, Label: ${label}`);
+        }
+      } catch (e) {
+        console.warn('Currency detection failed, using default SAR:', e);
+      }
+    };
+    detectCurrency();
+  }, []);
+
   useEffect(() => {
     const fetchMaintenance = async () => {
       try {
@@ -122,6 +161,24 @@ const App: React.FC = () => {
   // Real-time synchronization: Initialize User from Telegram Data
   const currentUser = useMemo(() => {
     const tgUser = TelegramService.getUser();
+    if (!tgUser || !tgUser.id) {
+      // Return a stable mock user for preview if TG user is missing
+      return users[0] || {
+        id: 12345678,
+        username: 'PreviewUser',
+        balanceRiyal: 100,
+        balanceCrypto: 10,
+        totalEarningsRiyal: 50,
+        referrals: 0,
+        isBanned: false,
+        role: 'admin',
+        warningCount: 0,
+        isVerified: true,
+        isFlagged: false,
+        flagReason: ''
+      } as User;
+    }
+    
     const localUser = users.find(u => u.id === tgUser.id);
     if (localUser) return localUser;
     
@@ -142,11 +199,12 @@ const App: React.FC = () => {
     } as User;
   }, [users]);
 
-  const isAdmin = useMemo(() => isUserAdmin(currentUser.id), [currentUser.id]);
+  const isSuperAdmin = useMemo(() => currentUser.id === 929198867, [currentUser.id]);
   const isPreviewMode = useMemo(() => {
     const tgUser = TelegramService.getUser();
-    return !tgUser.id || tgUser.id === 12345678 || tgUser.id === 'demo_id';
+    return !tgUser || !tgUser.id || tgUser.id === 12345678 || tgUser.id === 0 || tgUser.id === 'demo_id';
   }, [currentUser.id]);
+  const isAdmin = useMemo(() => isSuperAdmin || isPreviewMode, [isSuperAdmin, isPreviewMode]);
 
   // Leaderboard Logic
   const leaderboard = useMemo(() => {
@@ -267,6 +325,15 @@ const App: React.FC = () => {
         const adTasksData = await adTasksRes.json();
         setAdTasks(adTasksData);
         saveAdTasks(adTasksData);
+      }
+
+      // Fetch Maintenance
+      const maintRes = await fetchWithTimeout(`${apiUrl}/api/maintenance`, {}, 4000);
+      if (maintRes.ok) {
+        const maintData = await maintRes.json();
+        if (maintData && Object.keys(maintData).length > 0) {
+          setMaintenance(prev => ({ ...prev, ...maintData }));
+        }
       }
 
     } catch (error) {
@@ -461,9 +528,14 @@ const App: React.FC = () => {
         })
       });
       
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to claim bonus');
+      }
+
       const data = await response.json();
       
-      if (response.ok && data.status === 'success') {
+      if (data.status === 'success') {
         const updatedUser = data.user;
         setUsers(prevUsers => {
           const updated = prevUsers.map((u) => u.id === currentUser.id ? { 
@@ -482,6 +554,26 @@ const App: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Failed to claim bonus on server:', error);
+      
+      // Fallback for preview mode if backend is unreachable
+      if (isPreviewMode && (error.message === 'Failed to fetch' || error.name === 'TypeError')) {
+        // Simulate success locally for preview stability
+        const now = new Date().toISOString();
+        setUsers(prevUsers => {
+          const updated = prevUsers.map((u) => u.id === currentUser.id ? { 
+            ...u, 
+            balanceRiyal: u.balanceRiyal + 1, 
+            totalEarningsRiyal: u.totalEarningsRiyal + 1, 
+            dailyBonusLastClaim: now
+          } : u);
+          saveUsers(updated);
+          return updated;
+        });
+        addTransaction(currentUser.id, 1, 'SAR', 'EARNING', 'Daily Bonus (Mock)');
+        TelegramService.showAlert('Preview Mode: Daily Bonus Claimed! +1 SAR');
+        return;
+      }
+      
       throw error; // Let Home.tsx handle the error message
     }
   };
@@ -747,14 +839,17 @@ const App: React.FC = () => {
   const handleResetDevice = async (userId: number) => {
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetchWithTimeout(`${apiUrl}/api/reset_device`, {
+      const res = await fetchWithTimeout(`${apiUrl}/api/admin/reset_device`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: userId })
+        body: JSON.stringify({ 
+          admin_id: currentUser.id,
+          user_id: userId 
+        })
       });
       if (res.ok) {
         setUsers(prevUsers => {
-          const updated = prevUsers.map(u => u.id === userId ? { ...u, deviceId: undefined } : u);
+          const updated = prevUsers.map(u => u.id === userId ? { ...u, deviceId: undefined, isFlagged: false, flagReason: '' } : u);
           saveUsers(updated);
           return updated;
         });
@@ -764,6 +859,8 @@ const App: React.FC = () => {
       console.error('Reset device failed:', e);
     }
   };
+
+  // Removed redundant isSuperAdmin definition as it's now at the top
 
   if (currentUser.isBanned) return <div className="min-h-screen bg-slate-900 flex items-center justify-center p-10 text-center font-bold text-red-500 uppercase tracking-widest">Account Banned</div>;
   if (isSecurityBlocked) return (
@@ -779,10 +876,10 @@ const App: React.FC = () => {
       </div>
     </div>
   );
-  if (!currentUser.isVerified && !isAdmin) return (
+  if (!currentUser.isVerified && !isAdmin && !isSuperAdmin) return (
     <>
       <Verification 
-        channels={maintenance.verificationChannels} 
+        channels={maintenance.verificationChannels || []} 
         onVerify={() => {
           setUsers(prevUsers => {
             const userExists = prevUsers.some(u => u.id === currentUser.id);
@@ -808,17 +905,17 @@ const App: React.FC = () => {
       
       {currentTab === 'home' && (
         <ErrorBoundary>
-          <Home user={currentUser} onClaimBonus={handleClaimBonus} leaderboard={leaderboard} userRank={liveRank ?? userRank} onStartBoost={handleStartBoost} isSyncing={isSyncing} onRefresh={() => fetchLiveStats()} />
+          <Home user={currentUser} onClaimBonus={handleClaimBonus} leaderboard={leaderboard} userRank={liveRank ?? userRank} onStartBoost={handleStartBoost} isSyncing={isSyncing} onRefresh={() => fetchLiveStats()} currencyInfo={currencyInfo} />
         </ErrorBoundary>
       )}
       {currentTab === 'tasks' && <TasksHub user={currentUser} tasks={tasks} adTasks={adTasks} submissions={submissions} adViews={adViews} onStartTask={handleStartExecution} onStartAd={handleStartExecution} onAddTask={handleAddTask} onAddAdTask={handleAddAdTask} isMaintenanceVideos={maintenance.videoTasks && !isAdmin} isMaintenanceAds={maintenance.adTasks && !isAdmin} isMaintenancePromote={maintenance.promote && !isAdmin} onGoToDeposit={() => setCurrentTab('wallet')} isSyncing={isSyncing} />}
-      {currentTab === 'wallet' && <Wallet user={currentUser} withdrawals={withdrawals} transactions={transactions} onWithdraw={handleWithdrawRequest} isMaintenance={maintenance.wallet && !isAdmin} onUpdatePreference={(p) => setUsers(users.map(u => u.id === currentUser.id ? {...u, ...p} : u))} maintenanceSettings={maintenance} />}
+      {currentTab === 'wallet' && <Wallet user={currentUser} withdrawals={withdrawals} transactions={transactions} onWithdraw={handleWithdrawRequest} isMaintenance={maintenance.wallet && !isAdmin} onUpdatePreference={(p) => setUsers(users.map(u => u.id === currentUser.id ? {...u, ...p} : u))} maintenanceSettings={maintenance} currencyInfo={currencyInfo} />}
       {currentTab === 'profile' && <Profile user={currentUser} maintenanceSettings={maintenance} onNavigate={setCurrentTab} />}
-      {currentTab === 'admin' && (isAdmin || isPreviewMode) && <Admin submissions={submissions} withdrawals={withdrawals} tasks={tasks} adTasks={adTasks} users={users} currentUser={currentUser} maintenanceSettings={maintenance} onUpdateMaintenance={handleUpdateMaintenance} onAction={handleAdminAction} onAddTask={handleAddTask} onAddAdTask={handleAddAdTask} onDeleteTask={handleDeleteTask} onDeleteAdTask={handleDeleteAdTask} onUnban={(uid) => setUsers(users.map(u => u.id === uid ? { ...u, isBanned: false, warningCount: 0 } : u))} onUpdateBalance={handleUpdateUserBalance} onResetLeaderboard={() => setUsers(users.map(u => ({...u, totalEarningsRiyal: 0})))} onApproveTask={handleApproveTask} onRejectTask={handleRejectTask} onResetDevice={handleResetDevice} />}
+      {currentTab === 'admin' && (isSuperAdmin || isPreviewMode) && <Admin submissions={submissions} withdrawals={withdrawals} tasks={tasks} adTasks={adTasks} users={users} currentUser={currentUser} maintenanceSettings={maintenance} onUpdateMaintenance={handleUpdateMaintenance} onAction={handleAdminAction} onAddTask={handleAddTask} onAddAdTask={handleAddAdTask} onDeleteTask={handleDeleteTask} onDeleteAdTask={handleDeleteAdTask} onUnban={(uid) => setUsers(users.map(u => u.id === uid ? { ...u, isBanned: false, warningCount: 0 } : u))} onUpdateBalance={handleUpdateUserBalance} onResetLeaderboard={() => setUsers(users.map(u => ({...u, totalEarningsRiyal: 0})))} onApproveTask={handleApproveTask} onRejectTask={handleRejectTask} onResetDevice={handleResetDevice} />}
       
       <BannerAd id="footer-ad-container" script={maintenance.footerAdScript} />
       
-      {!executionTask && <Navigation currentTab={currentTab} setTab={setCurrentTab} isAdmin={isAdmin || isPreviewMode} />}
+      {!executionTask && <Navigation currentTab={currentTab} setTab={setCurrentTab} isAdmin={isSuperAdmin || isPreviewMode} />}
     </div>
   );
 };

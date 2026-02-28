@@ -27,8 +27,14 @@ interface AdminProps {
 }
 
 const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, currentUser, maintenanceSettings, onUpdateMaintenance, onAction, onAddTask, onAddAdTask, onDeleteTask, onDeleteAdTask, onUnban, onUpdateBalance, onResetLeaderboard, onApproveTask, onRejectTask, onResetDevice }) => {
-  const [activeAdminTab, setActiveAdminTab] = useState<'system' | 'payouts' | 'messaging' | 'balances' | 'tasks' | 'approvals' | 'users'>('system');
+  const [activeAdminTab, setActiveAdminTab] = useState<'system' | 'payouts' | 'messaging' | 'balances' | 'tasks' | 'approvals' | 'users' | 'deposits'>('system');
+  const [activeSysTab, setActiveSysTab] = useState<'maintenance' | 'ad_config' | 'app_info' | 'payment'>('maintenance');
   const [balanceSearch, setBalanceSearch] = useState('');
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [searchedUser, setSearchedUser] = useState<any>(null);
+  const [isSearching, setIsSearching] = useState(false);
+  const [deposits, setDeposits] = useState<any[]>([]);
+  const [isFetchingDeposits, setIsFetchingDeposits] = useState(false);
   const [adjustment, setAdjustment] = useState({ amount: '', currency: 'SAR' as const });
   const [paymentForm, setPaymentForm] = useState<AdminPaymentDetails>(maintenanceSettings.paymentDetails);
   const [boostForm, setBoostForm] = useState({
@@ -36,6 +42,8 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
     reward: maintenanceSettings.boostRewardRiyal.toString()
   });
   const [broadcastMsg, setBroadcastMsg] = useState('');
+  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
+  const [isResettingLeaderboard, setIsResettingLeaderboard] = useState(false);
   const [adScripts, setAdScripts] = useState({
     header: maintenanceSettings.headerAdScript || '',
     footer: maintenanceSettings.footerAdScript || ''
@@ -46,6 +54,18 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
     report: maintenanceSettings.reportLink || '',
     instructions: maintenanceSettings.depositInstructions || ''
   });
+  const [channelInputs, setChannelInputs] = useState<string[]>(
+    maintenanceSettings.verificationChannels?.length ? [...maintenanceSettings.verificationChannels] : ['', '', '', '', '']
+  );
+
+  // Ensure we always have 5 inputs
+  useEffect(() => {
+    if (channelInputs.length < 5) {
+      const newInputs = [...channelInputs];
+      while (newInputs.length < 5) newInputs.push('');
+      setChannelInputs(newInputs);
+    }
+  }, [channelInputs]);
 
   // Task Forms
   const [videoTaskForm, setVideoTaskForm] = useState({
@@ -83,10 +103,154 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
     onUpdateMaintenance({ ...maintenanceSettings, [key]: !maintenanceSettings[key] as any });
   };
 
-  const handleUpdatePaymentDetails = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (activeAdminTab === 'deposits') {
+      fetchDeposits();
+    }
+  }, [activeAdminTab]);
+
+  const fetchDeposits = async () => {
+    setIsFetchingDeposits(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/admin/deposits?admin_id=${currentUser.id}`);
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setDeposits(data);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsFetchingDeposits(false);
+    }
+  };
+
+  const handleApproveDeposit = async (id: string) => {
+    if (!window.confirm('Approve this deposit and credit user?')) return;
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/admin/approve_deposit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_id: currentUser.id, deposit_id: id })
+      });
+      if (res.ok) {
+        TelegramService.showAlert('Deposit Approved!');
+        fetchDeposits();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleRejectDeposit = async (id: string) => {
+    if (!window.confirm('Reject this deposit?')) return;
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/admin/reject_deposit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_id: currentUser.id, deposit_id: id })
+      });
+      if (res.ok) {
+        TelegramService.showAlert('Deposit Rejected');
+        fetchDeposits();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleUpdatePaymentDetails = async (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateMaintenance({ ...maintenanceSettings, paymentDetails: paymentForm });
-    TelegramService.showAlert('Payment details updated successfully!');
+    setIsUpdatingSettings(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/update_settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admin_id: currentUser.id,
+          paymentDetails: paymentForm
+        })
+      });
+      
+      if (res.ok) {
+        onUpdateMaintenance({ ...maintenanceSettings, paymentDetails: paymentForm });
+        TelegramService.showAlert('System settings updated successfully!');
+      } else {
+        TelegramService.showAlert('Failed to update settings');
+      }
+    } catch (err) {
+      console.error(err);
+      TelegramService.showAlert('Error updating settings');
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
+
+  const handleResetLeaderboardClick = async () => {
+    if (!window.confirm('Are you sure you want to start a new season? This will reset ranks.')) return;
+    
+    setIsResettingLeaderboard(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/reset_leaderboard`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_id: currentUser.id })
+      });
+      
+      if (res.ok) {
+        onResetLeaderboard();
+        TelegramService.showAlert('Leaderboard reset successfully!');
+      } else {
+        TelegramService.showAlert('Failed to reset leaderboard');
+      }
+    } catch (err) {
+      console.error(err);
+      TelegramService.showAlert('Error resetting leaderboard');
+    } finally {
+      setIsResettingLeaderboard(false);
+    }
+  };
+
+  const handleUpdateChannels = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsUpdatingSettings(true);
+    
+    // Filter out empty channels and ensure they start with @
+    const cleanedChannels = channelInputs
+      .map(c => c.trim())
+      .filter(c => c !== '')
+      .map(c => c.startsWith('@') ? c : `@${c}`);
+
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/maintenance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...maintenanceSettings,
+          verificationChannels: cleanedChannels
+        })
+      });
+
+      if (res.ok) {
+        onUpdateMaintenance({
+          ...maintenanceSettings,
+          verificationChannels: cleanedChannels
+        });
+        TelegramService.showAlert('Mandatory channels updated successfully!');
+      } else {
+        TelegramService.showAlert('Failed to update channels');
+      }
+    } catch (err) {
+      console.error(err);
+      TelegramService.showAlert('Error updating channels');
+    } finally {
+      setIsUpdatingSettings(false);
+    }
   };
 
   const handleUpdateBoostSettings = (e: React.FormEvent) => {
@@ -121,20 +285,130 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
     TelegramService.showAlert('System settings updated!');
   };
 
-  const handleUpdateDepositSettings = (e: React.FormEvent) => {
+  const handleUpdateDepositSettings = async (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateMaintenance({ 
-      ...maintenanceSettings, 
-      paymentDetails: paymentForm,
-      depositInstructions: systemLinks.instructions
-    });
-    TelegramService.showAlert('Deposit settings updated!');
+    setIsUpdatingSettings(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/update_settings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admin_id: currentUser.id,
+          paymentDetails: paymentForm
+        })
+      });
+      
+      if (res.ok) {
+        onUpdateMaintenance({ 
+          ...maintenanceSettings, 
+          paymentDetails: paymentForm,
+          depositInstructions: systemLinks.instructions
+        });
+        TelegramService.showAlert('Deposit settings updated successfully!');
+      } else {
+        TelegramService.showAlert('Failed to update settings');
+      }
+    } catch (err) {
+      console.error(err);
+      TelegramService.showAlert('Error updating settings');
+    } finally {
+      setIsUpdatingSettings(false);
+    }
   };
 
-  const handleAdjustBalance = () => {
-    if (!foundUser || !adjustment.amount) return;
-    onUpdateBalance(foundUser.id, parseFloat(adjustment.amount), adjustment.currency);
-    setAdjustment({ ...adjustment, amount: '' });
+  const handleSearchUser = async (userId?: string) => {
+    const idToSearch = userId || balanceSearch;
+    if (!idToSearch) return;
+    setIsSearching(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/admin/user_details/${idToSearch}?admin_id=${currentUser.id}`);
+      const data = await res.json();
+      if (data.status === 'success') {
+        const userIdNum = parseInt(idToSearch);
+        setSelectedUserId(userIdNum);
+        setSearchedUser({
+          id: userIdNum,
+          username: data.username,
+          balanceRiyal: data.balance_sar,
+          balanceCrypto: data.balance_usdt,
+          deviceId: data.device_id,
+          lastIp: data.last_ip
+        });
+      } else {
+        TelegramService.showAlert('User not found');
+        setSearchedUser(null);
+        setSelectedUserId(null);
+      }
+    } catch (err) {
+      console.error(err);
+      TelegramService.showAlert('Error searching user');
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const handleAdjustBalance = async () => {
+    if (!searchedUser || !adjustment.amount) return;
+    
+    setIsUpdatingSettings(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/admin/update_balance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admin_id: currentUser.id,
+          user_id: searchedUser.id,
+          amount: parseFloat(adjustment.amount),
+          currency: adjustment.currency
+        })
+      });
+      
+      if (res.ok) {
+        TelegramService.showAlert('Balance Updated Successfully!');
+        onUpdateBalance(searchedUser.id, parseFloat(adjustment.amount), adjustment.currency);
+        setAdjustment({ ...adjustment, amount: '' });
+        handleSearchUser();
+      } else {
+        TelegramService.showAlert('Failed to update balance');
+      }
+    } catch (err) {
+      console.error(err);
+      TelegramService.showAlert('Error updating balance');
+    } finally {
+      setIsUpdatingSettings(false);
+    }
+  };
+
+  const handleAdminResetDevice = async () => {
+    if (!searchedUser) return;
+    
+    setIsUpdatingSettings(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/admin/reset_device`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admin_id: currentUser.id,
+          user_id: searchedUser.id
+        })
+      });
+      
+      if (res.ok) {
+        TelegramService.showAlert('Device ID reset successfully!');
+        handleSearchUser(); // Refresh user data
+      } else {
+        TelegramService.showAlert('Failed to reset device');
+      }
+    } catch (err) {
+      console.error(err);
+      TelegramService.showAlert('Error resetting device');
+    } finally {
+      setIsUpdatingSettings(false);
+    }
   };
 
   const handleAddVideoTask = (e: React.FormEvent) => {
@@ -155,6 +429,7 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
     onAddTask(newTask);
     setVideoTaskForm({ title: '', url: '', duration: '15', reward: '1.00', platform: 'YouTube' });
     TelegramService.showAlert('Video task added!');
+    setTimeout(() => window.location.reload(), 1000);
   };
 
   const handleAddAdTask = (e: React.FormEvent) => {
@@ -175,7 +450,37 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
     onAddAdTask(newAd);
     setAdTaskForm({ title: '', url: '', duration: '10', reward: '0.50', network: 'Monetag' });
     TelegramService.showAlert('Ad task added!');
+    setTimeout(() => window.location.reload(), 1000);
   };
+  
+  const handleBroadcast = async () => {
+    if (!broadcastMsg.trim()) return;
+    
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/broadcast`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admin_id: currentUser.id,
+          message: broadcastMsg
+        })
+      });
+      
+      const data = await res.json();
+      if (res.ok) {
+        TelegramService.showAlert(`Broadcast Started: Sending message to ${data.total} users...`);
+        setBroadcastMsg('');
+      } else {
+        TelegramService.showAlert(data.message || 'Broadcast failed');
+      }
+    } catch (e) {
+      console.error('Broadcast error:', e);
+      TelegramService.showAlert('Server error during broadcast');
+    }
+  };
+
+  const isSuperAdmin = currentUser.id === 929198867 || isPreviewMode;
 
   return (
     <div className="p-4 space-y-6 pb-32">
@@ -187,10 +492,13 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
             { id: 'approvals', label: 'Approvals' },
             { id: 'tasks', label: 'Tasks' },
             { id: 'users', label: 'Users' },
+            { id: 'balances', label: 'Balances', super: true },
             { id: 'payouts', label: 'Payouts' },
             { id: 'messaging', label: 'Broadcast' },
-            { id: 'balances', label: 'Balances' }
-          ].map((tab) => (
+            { id: 'deposits', label: 'Deposits', super: true }
+          ]
+          .filter(tab => !tab.super || isSuperAdmin)
+          .map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveAdminTab(tab.id as any)}
@@ -378,50 +686,138 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
         </div>
       )}
 
-      {activeAdminTab === 'balances' && (
+      {activeAdminTab === 'deposits' && (
+        <div className="space-y-6 animate-in slide-in-from-right duration-300">
+          <section className="space-y-3">
+            <div className="flex justify-between items-center px-1">
+              <h3 className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Payment Logs</h3>
+              <button onClick={fetchDeposits} className="text-[10px] text-blue-400 font-bold uppercase">Refresh</button>
+            </div>
+            <div className="space-y-3">
+              {isFetchingDeposits ? (
+                <div className="text-center py-10 text-slate-500 text-sm italic">Loading deposits...</div>
+              ) : deposits.length === 0 ? (
+                <div className="text-center py-10 text-slate-500 text-sm italic">No deposit attempts found.</div>
+              ) : (
+                deposits.map(d => (
+                  <div key={d._id} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="text-xs font-bold">User ID: {d.userId}</p>
+                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{d.method} • {d.currency}</p>
+                        <p className="text-[10px] text-blue-400 font-mono mt-1">TxID: {d.txId}</p>
+                        {d.senderNumber && <p className="text-[10px] text-amber-400 font-bold mt-1">Sender: {d.senderNumber}</p>}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-green-400 font-bold text-sm">{d.amount} {d.currency}</p>
+                        <p className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full mt-1 inline-block ${
+                          d.status === 'PENDING' ? 'bg-amber-500/20 text-amber-500' :
+                          d.status === 'APPROVED' ? 'bg-green-500/20 text-green-500' :
+                          'bg-red-500/20 text-red-500'
+                        }`}>
+                          {d.status}
+                        </p>
+                      </div>
+                    </div>
+                    {d.status === 'PENDING' && (
+                      <div className="flex gap-2 pt-2">
+                        <button 
+                          onClick={() => handleApproveDeposit(d._id)}
+                          className="flex-1 bg-green-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-green-900/20"
+                        >
+                          Approve
+                        </button>
+                        <button 
+                          onClick={() => handleRejectDeposit(d._id)}
+                          className="flex-1 bg-red-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-900/20"
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+      )}
+      {activeAdminTab === 'balances' && isSuperAdmin && (
         <div className="space-y-6 animate-in zoom-in duration-300">
           <section className="space-y-3">
             <h3 className="font-bold text-blue-400">User Balance Manager</h3>
             <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-              <input type="number" placeholder="Search User ID" value={balanceSearch} onChange={e => setBalanceSearch(e.target.value)} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-sm outline-none" />
-              {foundUser && (
+              <div className="flex gap-2">
+                <input 
+                  type="number" 
+                  placeholder="Enter User ID" 
+                  value={balanceSearch} 
+                  onChange={e => setBalanceSearch(e.target.value)} 
+                  className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-sm outline-none" 
+                />
+                <button 
+                  onClick={() => handleSearchUser()}
+                  disabled={isSearching}
+                  className="bg-blue-600 px-4 py-2 rounded-xl text-xs font-bold uppercase disabled:opacity-50"
+                >
+                  {isSearching ? '...' : 'SEARCH'}
+                </button>
+              </div>
+              
+              {isSearching && (
+                <div className="flex flex-col items-center justify-center py-10 space-y-3">
+                  <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Fetching User Data...</p>
+                </div>
+              )}
+
+              {searchedUser && !isSearching && (
                 <div className="p-4 bg-slate-900/50 rounded-2xl border border-blue-500/30 space-y-4">
                   <div className="flex justify-between items-center">
-                    <p className="text-xs font-bold">@{foundUser.username}</p>
+                    <p className="text-xs font-bold">@{searchedUser.username}</p>
                     <div className="text-right">
-                      <p className="text-[10px] text-slate-400">{foundUser.balanceRiyal.toFixed(2)} SAR</p>
-                      <p className="text-[10px] text-slate-400">{foundUser.balanceCrypto.toFixed(2)} USDT</p>
+                      <p className="text-[10px] text-slate-400">{searchedUser.balanceRiyal.toFixed(2)} SAR</p>
+                      <p className="text-[10px] text-slate-400">{searchedUser.balanceCrypto.toFixed(2)} USDT</p>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <input type="number" step="any" placeholder="Amount (+ or -)" value={adjustment.amount} onChange={e => setAdjustment({...adjustment, amount: e.target.value})} className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs outline-none" />
+                    <input 
+                      type="number" 
+                      step="any" 
+                      placeholder="Amount (+ or -)" 
+                      value={adjustment.amount} 
+                      onChange={e => setAdjustment({...adjustment, amount: e.target.value})} 
+                      className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs outline-none" 
+                    />
                     <select value={adjustment.currency} onChange={e => setAdjustment({...adjustment, currency: e.target.value as any})} className="bg-slate-800 border border-slate-700 rounded-lg px-2 text-[10px] outline-none">
                       <option value="SAR">SAR</option>
                       <option value="USDT">USDT</option>
                     </select>
-                    <button onClick={handleAdjustBalance} className="bg-blue-600 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase">Apply</button>
+                    <button 
+                      onClick={handleAdjustBalance} 
+                      disabled={isUpdatingSettings}
+                      className="bg-blue-600 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase disabled:opacity-50"
+                    >
+                      APPLY
+                    </button>
                   </div>
 
                   <div className="pt-4 border-t border-slate-800 space-y-3">
                     <div className="flex justify-between items-center text-[10px]">
                       <span className="text-slate-500 uppercase font-bold">Device ID</span>
-                      <span className="text-slate-300 font-mono">{foundUser.deviceId || 'Not Set'}</span>
+                      <span className="text-slate-300 font-mono">{searchedUser.deviceId || 'Not Set'}</span>
                     </div>
                     <div className="flex justify-between items-center text-[10px]">
                       <span className="text-slate-500 uppercase font-bold">Last IP</span>
-                      <span className="text-slate-300 font-mono">{foundUser.lastIp || 'Unknown'}</span>
+                      <span className="text-slate-300 font-mono">{searchedUser.lastIp || 'Unknown'}</span>
                     </div>
-                    {foundUser.isFlagged && (
-                      <div className="bg-red-900/20 text-red-400 p-3 rounded-lg text-[10px] font-bold border border-red-900/30 space-y-1">
-                        <p>⚠️ IP SECURITY FLAG DETECTED</p>
-                        <p className="text-[9px] text-red-300/70 font-medium italic">{foundUser.flagReason || 'Multiple accounts detected from this IP/Device.'}</p>
-                      </div>
-                    )}
+                    
                     <button 
-                      onClick={() => onResetDevice(foundUser.id)}
-                      className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-700 transition-all"
+                      onClick={handleAdminResetDevice}
+                      disabled={isUpdatingSettings}
+                      className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-700 transition-all disabled:opacity-50"
                     >
-                      Reset Device ID
+                      RESET DEVICE ID
                     </button>
                   </div>
                 </div>
@@ -433,10 +829,18 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
             <h3 className="font-bold text-emerald-500">Season Management</h3>
             <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700">
                <button 
-                onClick={onResetLeaderboard}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95"
+                onClick={handleResetLeaderboardClick}
+                disabled={isResettingLeaderboard}
+                className={`w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 ${isResettingLeaderboard ? 'opacity-50 cursor-not-allowed' : ''}`}
                >
-                 🔄 Refresh Leaderboard (New Season)
+                 {isResettingLeaderboard ? (
+                   <>
+                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                     Resetting...
+                   </>
+                 ) : (
+                   'REFRESH LEADERBOARD'
+                 )}
                </button>
                <p className="text-[9px] text-slate-500 mt-2 text-center uppercase font-black">Clears all total earnings but keeps user balances.</p>
             </div>
@@ -448,7 +852,19 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
               <input type="text" placeholder="Crypto Address" value={paymentForm.cryptoAddress} onChange={e => setPaymentForm({...paymentForm, cryptoAddress: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
               <textarea placeholder="Bank Info" value={paymentForm.bankInfo} onChange={e => setPaymentForm({...paymentForm, bankInfo: e.target.value})} className="w-full h-20 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none resize-none" />
               <input type="text" placeholder="Support Username (no @)" value={paymentForm.supportUsername} onChange={e => setPaymentForm({...paymentForm, supportUsername: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-              <button className="w-full bg-amber-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest">Update Payment Details</button>
+              <button 
+                disabled={isUpdatingSettings}
+                className={`w-full bg-amber-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 ${isUpdatingSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                {isUpdatingSettings ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Updating...
+                  </>
+                ) : (
+                  'Update Payment Details'
+                )}
+              </button>
             </form>
           </section>
         </div>
@@ -456,124 +872,228 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
 
       {activeAdminTab === 'system' && (
         <div className="space-y-6">
-          <section className="space-y-3">
-            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Global Toggles</h3>
-            <div className="bg-slate-800 rounded-3xl border border-slate-700 divide-y divide-slate-700">
-              {['global', 'videoTasks', 'adTasks', 'promote', 'wallet'].map(id => (
-                <div key={id} className="p-4 flex items-center justify-between">
-                  <span className="text-xs font-bold capitalize">{id}</span>
-                  <button onClick={() => toggleService(id as any)} className={`h-6 w-10 rounded-full transition-colors ${maintenanceSettings[id as keyof MaintenanceSettings] ? 'bg-amber-500' : 'bg-slate-900 border border-slate-700'}`}>
-                    <div className={`h-4 w-4 bg-white rounded-full transition-transform ${maintenanceSettings[id as keyof MaintenanceSettings] ? 'translate-x-5' : 'translate-x-1'}`} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </section>
+          {/* SYS Sub-Tabs */}
+          <div className="flex flex-wrap gap-2 p-1.5 bg-slate-900/80 rounded-2xl border border-slate-700/50 shadow-inner">
+            {[
+              { id: 'maintenance', label: 'Maintenance' },
+              { id: 'ad_config', label: 'Ad Config' },
+              { id: 'app_info', label: 'App Info' },
+              { id: 'payment', label: 'Payment' }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveSysTab(tab.id as any)}
+                className={`flex-1 px-3 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${
+                  activeSysTab === tab.id
+                    ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] scale-[1.02] border border-blue-400/30'
+                    : 'bg-slate-800/40 text-slate-500 hover:text-slate-300 hover:bg-slate-800/60 border border-transparent'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-          <section className="space-y-3">
-            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Boost Settings</h3>
-            <form onSubmit={handleUpdateBoostSettings} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-              <input type="text" placeholder="Boost Ad Link (Direct)" value={boostForm.link} onChange={e => setBoostForm({...boostForm, link: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-              <input type="number" step="0.01" placeholder="Reward Amount (SAR)" value={boostForm.reward} onChange={e => setBoostForm({...boostForm, reward: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-              <button className="w-full bg-blue-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest">Update Boost Config</button>
-            </form>
-          </section>
+          <div className="mt-8">
+            {activeSysTab === 'maintenance' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                <section className="space-y-3">
+                  <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Global Toggles</h3>
+                  <div className="bg-slate-800 rounded-3xl border border-slate-700 divide-y divide-slate-700">
+                    {['global', 'videoTasks', 'adTasks', 'promote', 'wallet'].map(id => {
+                      const isActive = maintenanceSettings[id as keyof MaintenanceSettings];
+                      return (
+                        <div key={id} className="p-4 flex items-center justify-between">
+                          <span className="text-xs font-bold capitalize">{id}</span>
+                          <div className="flex items-center gap-3">
+                            <span className={`text-[10px] font-black uppercase ${isActive ? 'text-green-500' : 'text-red-500'}`}>
+                              {isActive ? 'ON' : 'OFF'}
+                            </span>
+                            <button 
+                              onClick={() => toggleService(id as any)} 
+                              className={`h-6 w-10 rounded-full transition-all duration-200 relative ${isActive ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'bg-slate-900 border border-slate-700'}`}
+                            >
+                              <div className={`h-4 w-4 bg-white rounded-full transition-transform duration-200 absolute top-1 ${isActive ? 'translate-x-5' : 'translate-x-1'}`} />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              </div>
+            )}
 
-          <section className="space-y-3">
-            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Universal Script Injector</h3>
-            <form onSubmit={handleUpdateAdScripts} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-              <div className="space-y-1">
-                <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Global Header Script (Social Bar/Popunder/Banners)</label>
-                <textarea 
-                  value={adScripts.header} 
-                  onChange={e => setAdScripts({...adScripts, header: e.target.value})} 
-                  placeholder="Paste Adsterra/Monetag/AdOperator code here..." 
-                  className="w-full h-24 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-[10px] font-mono outline-none resize-none" 
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Global Footer Script (Tracking/Banners)</label>
-                <textarea 
-                  value={adScripts.footer} 
-                  onChange={e => setAdScripts({...adScripts, footer: e.target.value})} 
-                  placeholder="Paste additional ad scripts here..." 
-                  className="w-full h-24 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-[10px] font-mono outline-none resize-none" 
-                />
-              </div>
-              <button className="w-full bg-emerald-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest">Update Global Scripts</button>
-            </form>
-          </section>
+            {activeSysTab === 'ad_config' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                <section className="space-y-3">
+                  <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Boost Settings</h3>
+                  <form onSubmit={handleUpdateBoostSettings} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
+                    <input type="text" placeholder="Boost Ad Link (Direct)" value={boostForm.link} onChange={e => setBoostForm({...boostForm, link: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
+                    <input type="number" step="0.01" placeholder="Reward Amount (SAR)" value={boostForm.reward} onChange={e => setBoostForm({...boostForm, reward: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
+                    <button className="w-full bg-blue-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest">Update Boost Config</button>
+                  </form>
+                </section>
 
-          <section className="space-y-3">
-            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">System Links & Rules</h3>
-            <form onSubmit={handleUpdateSystemLinks} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-              <div className="space-y-1">
-                <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Support Telegram Link</label>
-                <input 
-                  type="text" 
-                  placeholder="https://t.me/YourSupport" 
-                  value={systemLinks.support} 
-                  onChange={e => setSystemLinks({...systemLinks, support: e.target.value})} 
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" 
-                />
+                <section className="space-y-3">
+                  <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Universal Script Injector</h3>
+                  <form onSubmit={handleUpdateAdScripts} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Global Header Script (Social Bar/Popunder/Banners)</label>
+                      <textarea 
+                        value={adScripts.header} 
+                        onChange={e => setAdScripts({...adScripts, header: e.target.value})} 
+                        placeholder="Paste Adsterra/Monetag/AdOperator code here..." 
+                        className="w-full h-24 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-[10px] font-mono outline-none resize-none" 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Global Footer Script (Tracking/Banners)</label>
+                      <textarea 
+                        value={adScripts.footer} 
+                        onChange={e => setAdScripts({...adScripts, footer: e.target.value})} 
+                        placeholder="Paste additional ad scripts here..." 
+                        className="w-full h-24 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-[10px] font-mono outline-none resize-none" 
+                      />
+                    </div>
+                    <button className="w-full bg-emerald-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest">Update Global Scripts</button>
+                  </form>
+                </section>
               </div>
-              <div className="space-y-1">
-                <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Report/Feedback Link</label>
-                <input 
-                  type="text" 
-                  placeholder="https://t.me/YourSupportBot" 
-                  value={systemLinks.report} 
-                  onChange={e => setSystemLinks({...systemLinks, report: e.target.value})} 
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" 
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Terms of Service Content</label>
-                <textarea 
-                  value={systemLinks.tos} 
-                  onChange={e => setSystemLinks({...systemLinks, tos: e.target.value})} 
-                  placeholder="App rules and policies..." 
-                  className="w-full h-32 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-[10px] outline-none resize-none" 
-                />
-              </div>
-              <button className="w-full bg-blue-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest">Save System Settings</button>
-            </form>
-          </section>
+            )}
 
-          <section className="space-y-3">
-            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Deposit Settings</h3>
-            <form onSubmit={handleUpdateDepositSettings} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-              <div className="space-y-1">
-                <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Crypto Wallet Address (USDT-TRC20)</label>
-                <input 
-                  type="text" 
-                  placeholder="T..." 
-                  value={paymentForm.cryptoAddress} 
-                  onChange={e => setPaymentForm({...paymentForm, cryptoAddress: e.target.value})} 
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" 
-                />
+            {activeSysTab === 'app_info' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                <section className="space-y-3">
+                  <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Mandatory Channels Manager</h3>
+                  <form onSubmit={handleUpdateChannels} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
+                    <p className="text-[9px] text-slate-400 px-1 uppercase font-bold">Enter Telegram usernames (e.g. @channelname)</p>
+                    <div className="space-y-2">
+                      {channelInputs.map((val, idx) => (
+                        <div key={idx} className="flex items-center gap-2">
+                          <span className="text-[10px] text-slate-500 font-bold w-4">{idx + 1}</span>
+                          <input 
+                            type="text" 
+                            placeholder={`@channel${idx + 1}`}
+                            value={val}
+                            onChange={(e) => {
+                              const newInputs = [...channelInputs];
+                              newInputs[idx] = e.target.value;
+                              setChannelInputs(newInputs);
+                            }}
+                            className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none focus:border-blue-500/50 transition-colors"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <button 
+                      disabled={isUpdatingSettings}
+                      className={`w-full bg-blue-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${isUpdatingSettings ? 'opacity-50' : ''}`}
+                    >
+                      {isUpdatingSettings ? 'Saving...' : 'Save Channels'}
+                    </button>
+                  </form>
+                </section>
+
+                <section className="space-y-3">
+                  <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">System Links & Rules</h3>
+                  <form onSubmit={handleUpdateSystemLinks} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Support Telegram Link</label>
+                      <input 
+                        type="text" 
+                        placeholder="https://t.me/YourSupport" 
+                        value={systemLinks.support} 
+                        onChange={e => setSystemLinks({...systemLinks, support: e.target.value})} 
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Report/Feedback Link</label>
+                      <input 
+                        type="text" 
+                        placeholder="https://t.me/YourSupportBot" 
+                        value={systemLinks.report} 
+                        onChange={e => setSystemLinks({...systemLinks, report: e.target.value})} 
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Terms of Service Content</label>
+                      <textarea 
+                        value={systemLinks.tos} 
+                        onChange={e => setSystemLinks({...systemLinks, tos: e.target.value})} 
+                        placeholder="App rules and policies..." 
+                        className="w-full h-32 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-[10px] outline-none resize-none" 
+                      />
+                    </div>
+                    <button className="w-full bg-blue-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest">Save System Settings</button>
+                  </form>
+                </section>
               </div>
-              <div className="space-y-1">
-                <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Local Payment Info (Bank Details)</label>
-                <textarea 
-                  placeholder="Bank Name: ...&#10;Account: ...&#10;Name: ..." 
-                  value={paymentForm.bankInfo} 
-                  onChange={e => setPaymentForm({...paymentForm, bankInfo: e.target.value})} 
-                  className="w-full h-24 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none resize-none" 
-                />
+            )}
+
+            {activeSysTab === 'payment' && (
+              <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
+                <section className="space-y-3">
+                  <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Deposit Settings</h3>
+                  <form onSubmit={handleUpdateDepositSettings} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Gateway API Key (CoinRemitter/NowPayments)</label>
+                      <input 
+                        type="password" 
+                        placeholder="API Key..." 
+                        value={paymentForm.apiKey || ''} 
+                        onChange={e => setPaymentForm({...paymentForm, apiKey: e.target.value})} 
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Crypto Wallet Address (USDT-TRC20)</label>
+                      <input 
+                        type="text" 
+                        placeholder="T..." 
+                        value={paymentForm.cryptoAddress} 
+                        onChange={e => setPaymentForm({...paymentForm, cryptoAddress: e.target.value})} 
+                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Local Payment Info (Bank Details)</label>
+                      <textarea 
+                        placeholder="Bank Name: ...&#10;Account: ...&#10;Name: ..." 
+                        value={paymentForm.bankInfo} 
+                        onChange={e => setPaymentForm({...paymentForm, bankInfo: e.target.value})} 
+                        className="w-full h-24 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none resize-none" 
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Deposit Instructions</label>
+                      <textarea 
+                        placeholder="Step 1: ...&#10;Step 2: ..." 
+                        value={systemLinks.instructions} 
+                        onChange={e => setSystemLinks({...systemLinks, instructions: e.target.value})} 
+                        className="w-full h-32 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-[10px] outline-none resize-none" 
+                      />
+                    </div>
+                    <button 
+                      disabled={isUpdatingSettings}
+                      className={`w-full bg-amber-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 ${isUpdatingSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      {isUpdatingSettings ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          Saving...
+                        </>
+                      ) : (
+                        'Save Deposit Settings'
+                      )}
+                    </button>
+                  </form>
+                </section>
               </div>
-              <div className="space-y-1">
-                <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Deposit Instructions</label>
-                <textarea 
-                  placeholder="Step 1: ...&#10;Step 2: ..." 
-                  value={systemLinks.instructions} 
-                  onChange={e => setSystemLinks({...systemLinks, instructions: e.target.value})} 
-                  className="w-full h-32 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-[10px] outline-none resize-none" 
-                />
-              </div>
-              <button className="w-full bg-amber-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest">Save Deposit Settings</button>
-            </form>
-          </section>
+            )}
+          </div>
         </div>
       )}
 
@@ -581,7 +1101,7 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
       {activeAdminTab === 'messaging' && (
         <section className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
           <textarea value={broadcastMsg} onChange={e => setBroadcastMsg(e.target.value)} placeholder="Message to all users..." className="w-full h-20 bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs outline-none" />
-          <button className="w-full bg-blue-600 py-3 rounded-xl font-bold text-xs uppercase">Send Broadcast</button>
+          <button onClick={handleBroadcast} className="w-full bg-blue-600 py-3 rounded-xl font-bold text-xs uppercase">Send Broadcast</button>
         </section>
       )}
 
@@ -606,6 +1126,7 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
                       onClick={() => {
                         setBalanceSearch(u.id.toString());
                         setActiveAdminTab('balances');
+                        handleSearchUser(u.id.toString());
                       }}
                       className="text-[9px] text-slate-400 underline uppercase font-bold mt-1"
                     >

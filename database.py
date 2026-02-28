@@ -31,6 +31,7 @@ withdrawals_col = db['withdrawals']
 tasks_col = db['tasks']
 ad_tasks_col = db['ad_tasks']
 settings_col = db['settings']
+deposits_col = db['deposits']
 
 # Referral Percentages: Level 1 (10%), Level 2 (5%), Level 3 (2%), Level 4 (1%)
 REF_PERCENTAGES = [0.10, 0.05, 0.02, 0.01]
@@ -59,6 +60,7 @@ def create_user(tg_user, inviter_id=None):
                 "isBanned": False,
                 "warningCount": 0,
                 "isVerified": False,
+                "lastDepositAttempt": None,
                 "createdAt": datetime.utcnow()
             }
             users_col.insert_one(new_user)
@@ -224,16 +226,19 @@ def get_leaderboard(limit=10):
 def add_task(task_data):
     """Add a new video task."""
     try:
+        # Explicitly set status to active
+        task_data['status'] = 'active'
         tasks_col.insert_one(task_data)
+        print(f"Task saved to DB: {task_data.get('id')}")
         return True
     except Exception as e:
         logger.error(f"Error adding task: {e}")
         return False
 
 def get_tasks():
-    """Get all video tasks."""
+    """Get all video tasks with active status."""
     try:
-        tasks = list(tasks_col.find({}, {"_id": 0}))
+        tasks = list(tasks_col.find({"status": "active"}, {"_id": 0}))
         return tasks
     except Exception as e:
         logger.error(f"Error fetching tasks: {e}")
@@ -323,11 +328,11 @@ def sync_security(user_id, device_id, ip):
         return False, str(e)
 
 def reset_device(user_id):
-    """Clear device ID for a user (Admin only action)."""
+    """Clear device ID and last IP for a user (Admin only action)."""
     try:
         users_col.update_one(
             {"id": int(user_id)},
-            {"$set": {"deviceId": None, "isFlagged": False, "flagReason": ""}}
+            {"$set": {"deviceId": None, "lastIp": None, "isFlagged": False, "flagReason": ""}}
         )
         return True
     except Exception as e:
@@ -392,4 +397,108 @@ def update_maintenance_settings(settings_data):
         return True
     except Exception as e:
         logger.error(f"Error updating maintenance settings: {e}")
+        return False
+
+def admin_update_balance(user_id, amount, currency):
+    """Update user balance (Admin only action)."""
+    try:
+        field = "balanceRiyal" if currency == "SAR" else "balanceCrypto"
+        users_col.update_one(
+            {"id": int(user_id)},
+            {"$inc": {field: float(amount)}}
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error updating balance for user {user_id}: {e}")
+        return False
+
+def reset_leaderboard():
+    """Reset total earnings for all users (New Season)."""
+    try:
+        users_col.update_many({}, {"$set": {"totalEarningsRiyal": 0.0}})
+        return True
+    except Exception as e:
+        logger.error(f"Error resetting leaderboard: {e}")
+        return False
+
+# --- DEPOSIT MANAGEMENT ---
+
+def create_deposit(user_id, amount, currency, method, tx_id, sender_number=None):
+    """Create a new deposit record."""
+    try:
+        deposit = {
+            "userId": int(user_id),
+            "amount": float(amount),
+            "currency": currency,
+            "method": method,
+            "txId": tx_id,
+            "senderNumber": sender_number,
+            "status": "PENDING",
+            "createdAt": datetime.utcnow()
+        }
+        deposits_col.insert_one(deposit)
+        # Update last attempt for cooldown
+        users_col.update_one({"id": int(user_id)}, {"$set": {"lastDepositAttempt": datetime.utcnow()}})
+        return True
+    except Exception as e:
+        logger.error(f"Error creating deposit: {e}")
+        return False
+
+def get_deposits(status=None):
+    """Get deposit records."""
+    try:
+        query = {"status": status} if status else {}
+        deposits = list(deposits_col.find(query).sort("createdAt", -1))
+        for d in deposits:
+            d['_id'] = str(d['_id'])
+        return deposits
+    except Exception as e:
+        logger.error(f"Error fetching deposits: {e}")
+        return []
+
+def approve_deposit(deposit_id):
+    """Approve a deposit and credit user balance."""
+    from bson import ObjectId
+    try:
+        deposit = deposits_col.find_one({"_id": ObjectId(deposit_id)})
+        if not deposit or deposit['status'] != 'PENDING':
+            return False, "Deposit not found or already processed"
+        
+        user_id = deposit['userId']
+        amount = deposit['amount']
+        currency = deposit['currency'] # SAR or USDT
+        
+        # Credit user
+        field = "balanceRiyal" if currency == "SAR" else "balanceCrypto"
+        users_col.update_one({"id": user_id}, {"$inc": {field: amount}})
+        
+        # Log transaction
+        transactions_col.insert_one({
+            "userId": user_id,
+            "amount": amount,
+            "type": "DEPOSIT",
+            "description": f"Deposit Approved ({deposit['method']})",
+            "currency": currency,
+            "timestamp": datetime.utcnow()
+        })
+        
+        # Update deposit status
+        deposits_col.update_one({"_id": ObjectId(deposit_id)}, {"$set": {"status": "APPROVED", "processedAt": datetime.utcnow()}})
+        
+        return True, "Deposit approved and credited"
+    except Exception as e:
+        logger.error(f"Error approving deposit: {e}")
+        return False, str(e)
+
+def reject_deposit(deposit_id):
+    """Reject a deposit."""
+    from bson import ObjectId
+    try:
+        deposits_col.update_one(
+            {"_id": ObjectId(deposit_id)}, 
+            {"$set": {"status": "REJECTED", "processedAt": datetime.utcnow()}}
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error rejecting deposit: {e}")
         return False
