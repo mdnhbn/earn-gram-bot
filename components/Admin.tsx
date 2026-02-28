@@ -100,7 +100,8 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
   const foundUser = users.find(u => u.id.toString() === balanceSearch);
 
   const toggleService = (key: keyof MaintenanceSettings) => {
-    onUpdateMaintenance({ ...maintenanceSettings, [key]: !maintenanceSettings[key] as any });
+    const updated = { ...maintenanceSettings, [key]: !maintenanceSettings[key] as any };
+    onUpdateMaintenance(updated);
   };
 
   useEffect(() => {
@@ -745,20 +746,20 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
       {activeAdminTab === 'balances' && isSuperAdmin && (
         <div className="space-y-6 animate-in zoom-in duration-300">
           <section className="space-y-3">
-            <h3 className="font-bold text-blue-400">User Balance Manager</h3>
-            <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
+            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">User Balance Manager</h3>
+            <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-4">
               <div className="flex gap-2">
                 <input 
                   type="number" 
                   placeholder="Enter User ID" 
                   value={balanceSearch} 
                   onChange={e => setBalanceSearch(e.target.value)} 
-                  className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-sm outline-none" 
+                  className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500/50 transition-colors" 
                 />
                 <button 
                   onClick={() => handleSearchUser()}
                   disabled={isSearching}
-                  className="bg-blue-600 px-4 py-2 rounded-xl text-xs font-bold uppercase disabled:opacity-50"
+                  className="bg-blue-600 px-6 py-2 rounded-xl text-xs font-bold uppercase disabled:opacity-50 transition-all active:scale-95"
                 >
                   {isSearching ? '...' : 'SEARCH'}
                 </button>
@@ -772,50 +773,69 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
               )}
 
               {searchedUser && !isSearching && (
-                <div className="p-4 bg-slate-900/50 rounded-2xl border border-blue-500/30 space-y-4">
-                  <div className="flex justify-between items-center">
-                    <p className="text-xs font-bold">@{searchedUser.username}</p>
-                    <div className="text-right">
-                      <p className="text-[10px] text-slate-400">{searchedUser.balanceRiyal.toFixed(2)} SAR</p>
-                      <p className="text-[10px] text-slate-400">{searchedUser.balanceCrypto.toFixed(2)} USDT</p>
+                <div className="p-5 bg-slate-900/80 rounded-2xl border border-blue-500/30 space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
+                  {/* Result Card Header: Identity & Balance */}
+                  <div className="flex justify-between items-start border-b border-slate-700/50 pb-4">
+                    <div>
+                      <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest mb-1">User Identity</p>
+                      <h4 className="text-lg font-bold text-white">@{searchedUser.username}</h4>
+                      <p className="text-[10px] text-slate-500 font-mono">Member ID: {searchedUser.id}</p>
                     </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <input 
-                      type="number" 
-                      step="any" 
-                      placeholder="Amount (+ or -)" 
-                      value={adjustment.amount} 
-                      onChange={e => setAdjustment({...adjustment, amount: e.target.value})} 
-                      className="flex-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs outline-none" 
-                    />
-                    <select value={adjustment.currency} onChange={e => setAdjustment({...adjustment, currency: e.target.value as any})} className="bg-slate-800 border border-slate-700 rounded-lg px-2 text-[10px] outline-none">
-                      <option value="SAR">SAR</option>
-                      <option value="USDT">USDT</option>
-                    </select>
-                    <button 
-                      onClick={handleAdjustBalance} 
-                      disabled={isUpdatingSettings}
-                      className="bg-blue-600 px-4 py-1.5 rounded-lg text-[10px] font-black uppercase disabled:opacity-50"
-                    >
-                      APPLY
-                    </button>
+                    <div className="text-right">
+                      <p className="text-[9px] text-emerald-400 font-black uppercase tracking-widest mb-1">Live Balance</p>
+                      <p className="text-sm font-bold text-white">{searchedUser.balanceRiyal.toFixed(2)} SAR</p>
+                      <p className="text-xs text-slate-400 font-mono">{searchedUser.balanceCrypto.toFixed(2)} USDT</p>
+                    </div>
                   </div>
 
-                  <div className="pt-4 border-t border-slate-800 space-y-3">
-                    <div className="flex justify-between items-center text-[10px]">
-                      <span className="text-slate-500 uppercase font-bold">Device ID</span>
-                      <span className="text-slate-300 font-mono">{searchedUser.deviceId || 'Not Set'}</span>
+                  {/* Device Info Section */}
+                  <div className="grid grid-cols-2 gap-4 bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
+                    <div>
+                      <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest mb-1">Device ID</p>
+                      <p className="text-[10px] text-slate-300 font-mono truncate">{searchedUser.deviceId || 'Not Set'}</p>
                     </div>
-                    <div className="flex justify-between items-center text-[10px]">
-                      <span className="text-slate-500 uppercase font-bold">Last IP</span>
-                      <span className="text-slate-300 font-mono">{searchedUser.lastIp || 'Unknown'}</span>
+                    <div>
+                      <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest mb-1">Last IP</p>
+                      <p className="text-[10px] text-slate-300 font-mono">{searchedUser.lastIp || 'Unknown'}</p>
                     </div>
-                    
+                  </div>
+
+                  {/* Balance Editor Section */}
+                  <div className="space-y-3">
+                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest px-1">Balance Editor</p>
+                    <div className="flex gap-2">
+                      <input 
+                        type="number" 
+                        step="any" 
+                        placeholder="Amount (+ or -)" 
+                        value={adjustment.amount} 
+                        onChange={e => setAdjustment({...adjustment, amount: e.target.value})} 
+                        className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none focus:border-blue-500/50" 
+                      />
+                      <select 
+                        value={adjustment.currency} 
+                        onChange={e => setAdjustment({...adjustment, currency: e.target.value as any})} 
+                        className="bg-slate-900 border border-slate-700 rounded-xl px-3 text-[10px] font-bold outline-none"
+                      >
+                        <option value="SAR">SAR</option>
+                        <option value="USDT">USDT</option>
+                      </select>
+                      <button 
+                        onClick={handleAdjustBalance} 
+                        disabled={isUpdatingSettings || !adjustment.amount}
+                        className="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
+                      >
+                        APPLY
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Reset Button Section */}
+                  <div className="pt-2">
                     <button 
                       onClick={handleAdminResetDevice}
                       disabled={isUpdatingSettings}
-                      className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border border-slate-700 transition-all disabled:opacity-50"
+                      className="w-full bg-red-600/10 hover:bg-red-600/20 text-red-500 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-500/20 transition-all active:scale-[0.98] disabled:opacity-50"
                     >
                       RESET DEVICE ID
                     </button>
@@ -894,7 +914,7 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
             ))}
           </div>
 
-          <div className="mt-8">
+          <div className="mt-10">
             {activeSysTab === 'maintenance' && (
               <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
                 <section className="space-y-3">
@@ -906,14 +926,14 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
                         <div key={id} className="p-4 flex items-center justify-between">
                           <span className="text-xs font-bold capitalize">{id}</span>
                           <div className="flex items-center gap-3">
-                            <span className={`text-[10px] font-black uppercase ${isActive ? 'text-green-500' : 'text-red-500'}`}>
+                            <span className={`text-[10px] font-black uppercase transition-colors duration-200 ${isActive ? 'text-green-500' : 'text-red-500'}`}>
                               {isActive ? 'ON' : 'OFF'}
                             </span>
                             <button 
                               onClick={() => toggleService(id as any)} 
-                              className={`h-6 w-10 rounded-full transition-all duration-200 relative ${isActive ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' : 'bg-slate-900 border border-slate-700'}`}
+                              className={`h-6 w-10 rounded-full transition-all duration-300 relative ${isActive ? 'bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.5)]' : 'bg-slate-900 border border-slate-700'}`}
                             >
-                              <div className={`h-4 w-4 bg-white rounded-full transition-transform duration-200 absolute top-1 ${isActive ? 'translate-x-5' : 'translate-x-1'}`} />
+                              <div className={`h-4 w-4 bg-white rounded-full transition-all duration-300 absolute top-1 ${isActive ? 'translate-x-5' : 'translate-x-1'}`} />
                             </button>
                           </div>
                         </div>

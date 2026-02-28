@@ -352,7 +352,7 @@ def get_maintenance_settings():
         return None
 
 def claim_daily_bonus(user_id):
-    """Check and process daily bonus (1 SAR)."""
+    """Check and process daily bonus (1.00 SAR)."""
     try:
         user = get_user(user_id)
         if not user:
@@ -362,27 +362,41 @@ def claim_daily_bonus(user_id):
         now = datetime.utcnow()
         
         if last_claim:
-            # last_claim might be a string or datetime depending on how it was saved
+            # Handle both datetime objects and ISO strings
             if isinstance(last_claim, str):
                 try:
-                    last_claim = datetime.fromisoformat(last_claim.replace('Z', '+00:00'))
-                except:
-                    last_claim = None
+                    # Remove 'Z' if present and convert
+                    clean_ts = last_claim.replace('Z', '+00:00')
+                    last_claim_dt = datetime.fromisoformat(clean_ts)
+                except Exception as e:
+                    logger.error(f"Error parsing timestamp {last_claim}: {e}")
+                    last_claim_dt = None
+            else:
+                last_claim_dt = last_claim
             
-            if last_claim and (now - last_claim).total_seconds() < 24 * 3600:
-                return False, "Bonus already claimed today"
+            if last_claim_dt:
+                # Ensure both are naive or both are aware. datetime.utcnow() is naive.
+                if last_claim_dt.tzinfo is not None:
+                    last_claim_dt = last_claim_dt.replace(tzinfo=None)
+                
+                diff = (now - last_claim_dt).total_seconds()
+                if diff < 24 * 3600:
+                    remaining = int(24 * 3600 - diff)
+                    hours = remaining // 3600
+                    minutes = (remaining % 3600) // 60
+                    return False, f"Already claimed. Try again in {hours}h {minutes}m"
         
-        # Process reward
-        reward = 1.0
+        # Process reward (1.00 SAR)
+        reward = 1.00
         process_reward(user_id, reward, "Daily Bonus")
         
         # Update last claim time
         users_col.update_one({"id": user_id}, {"$set": {"dailyBonusLastClaim": now}})
         
-        return True, "Daily Bonus Claimed! +1 SAR"
+        return True, "Daily Bonus Claimed! +1.00 SAR"
     except Exception as e:
         logger.error(f"Error claiming daily bonus for user {user_id}: {e}")
-        return False, "Server busy, try again later"
+        return False, "Server error, please try again"
 
 def update_maintenance_settings(settings_data):
     """Update global maintenance and system settings."""

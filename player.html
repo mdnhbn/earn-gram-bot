@@ -55,6 +55,16 @@
             <div id="loading" class="absolute inset-0 flex items-center justify-center bg-slate-900">
                 <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
             </div>
+            
+            <!-- Fallback Message (Hidden by default) -->
+            <div id="fallback-zone" class="hidden absolute inset-0 flex flex-col items-center justify-center text-center p-8 bg-slate-900 z-20">
+                <div class="text-6xl mb-4">🚫</div>
+                <h3 class="text-xl font-bold text-white mb-2">Content cannot be displayed here.</h3>
+                <p class="text-slate-400 text-sm mb-8">Click the button below to watch on the official app and return here to claim.</p>
+                <a id="official-link" href="#" target="_blank" class="bg-blue-600 hover:bg-blue-500 px-10 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-600/20 transition-all active:scale-95">
+                    Watch on App
+                </a>
+            </div>
         </div>
 
         <!-- Control Bar -->
@@ -98,6 +108,8 @@
         const mathProblem = document.getElementById('math-problem');
         const captchaInput = document.getElementById('captcha-input');
         const claimBtn = document.getElementById('claim-btn');
+        const fallbackZone = document.getElementById('fallback-zone');
+        const officialLink = document.getElementById('official-link');
 
         // 0. Inject Ads
         function injectAds() {
@@ -128,16 +140,19 @@
 
             const platform = urlParams.get('platform');
             let embedHtml = '';
+            const allowAttr = "autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope";
 
+            // YouTube Conversion
             if (platform === 'YouTube' || videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
                 const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
                 const match = videoUrl.match(regExp);
                 const id = (match && match[2].length === 11) ? match[2] : '';
-                embedHtml = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1&mute=1" allow="autoplay; encrypted-media; fullscreen"></iframe>`;
-            } else if (platform === 'TikTok' || videoUrl.includes('tiktok.com')) {
-                const id = videoUrl.split('/video/')[1]?.split('?')[0];
-                embedHtml = `<iframe src="https://www.tiktok.com/embed/v2/${id}" allow="fullscreen"></iframe>`;
-            } else if (platform === 'Dailymotion' || videoUrl.includes('dailymotion.com') || videoUrl.includes('dai.ly')) {
+                if (id) {
+                    embedHtml = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1&mute=0" allow="${allowAttr}"></iframe>`;
+                }
+            } 
+            // Dailymotion Conversion
+            else if (platform === 'Dailymotion' || videoUrl.includes('dailymotion.com') || videoUrl.includes('dai.ly')) {
                 let id = '';
                 if (videoUrl.includes('dai.ly')) {
                     const parts = videoUrl.split('/');
@@ -145,19 +160,48 @@
                 } else {
                     id = videoUrl.split('/video/')[1]?.split('?')[0];
                 }
-                console.log('Video ID extracted:', id);
-                embedHtml = `<iframe src="https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=0" allow="autoplay; fullscreen"></iframe>`;
-            } else if (platform === 'Vimeo' || videoUrl.includes('vimeo.com')) {
-                const id = videoUrl.split('/').pop()?.split('?')[0];
-                embedHtml = `<iframe src="https://player.vimeo.com/video/${id}?autoplay=1&muted=1" allow="autoplay; fullscreen"></iframe>`;
-            } else if (platform === 'Facebook' || videoUrl.includes('facebook.com')) {
-                embedHtml = `<iframe src="https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(videoUrl)}&show_text=0&autoplay=1" allow="autoplay; encrypted-media; fullscreen"></iframe>`;
-            } else if (platform === 'Custom') {
-                embedHtml = `<video src="${videoUrl}" autoplay muted controls class="w-full h-full" oncontextmenu="return false;" controlsList="nodownload"></video>`;
-            } else {
-                embedHtml = `<iframe src="${videoUrl}" allow="autoplay; encrypted-media; fullscreen"></iframe>`;
+                if (id) {
+                    embedHtml = `<iframe src="https://www.dailymotion.com/embed/video/${id}?autoplay=1" allow="${allowAttr}"></iframe>`;
+                }
             }
-            playerSlot.innerHTML = embedHtml;
+            // TikTok
+            else if (platform === 'TikTok' || videoUrl.includes('tiktok.com')) {
+                const id = videoUrl.split('/video/')[1]?.split('?')[0];
+                if (id) {
+                    embedHtml = `<iframe src="https://www.tiktok.com/embed/v2/${id}" allow="${allowAttr}"></iframe>`;
+                }
+            } 
+            // Vimeo
+            else if (platform === 'Vimeo' || videoUrl.includes('vimeo.com')) {
+                const id = videoUrl.split('/').pop()?.split('?')[0];
+                if (id) {
+                    embedHtml = `<iframe src="https://player.vimeo.com/video/${id}?autoplay=1&muted=0" allow="${allowAttr}"></iframe>`;
+                }
+            } 
+            // Facebook
+            else if (platform === 'Facebook' || videoUrl.includes('facebook.com')) {
+                embedHtml = `<iframe src="https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(videoUrl)}&show_text=0&autoplay=1" allow="${allowAttr}"></iframe>`;
+            } 
+            // Custom MP4
+            else if (platform === 'Custom' || videoUrl.endsWith('.mp4')) {
+                embedHtml = `<video src="${videoUrl}" autoplay controls class="w-full h-full" oncontextmenu="return false;" controlsList="nodownload"></video>`;
+            } 
+            // Generic Fallback
+            else {
+                embedHtml = `<iframe src="${videoUrl}" allow="${allowAttr}"></iframe>`;
+            }
+
+            if (embedHtml) {
+                playerSlot.innerHTML = embedHtml;
+            } else {
+                showFallback();
+            }
+        }
+
+        function showFallback() {
+            fallbackZone.classList.remove('hidden');
+            officialLink.href = videoUrl;
+            document.getElementById('loading').classList.add('hidden');
         }
 
         // 2. Timer Logic
@@ -207,7 +251,6 @@
         claimBtn.onclick = () => {
             const userVal = parseInt(captchaInput.value);
             if (userVal === captchaAnswer) {
-                // Signal to parent React app - No secret code needed
                 window.parent.postMessage({ type: 'CLAIM_TASK' }, '*');
                 
                 if (window.Telegram?.WebApp) {

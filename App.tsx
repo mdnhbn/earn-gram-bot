@@ -443,14 +443,14 @@ const App: React.FC = () => {
     setExecutionStartTime(Date.now());
   };
 
-  const handleStartBoost = () => {
+  const handleStartBoost = (url: string, time: number) => {
     const boostTask: AdTask = {
       id: 'boost-' + Date.now(),
       title: 'Quick Earnings Boost',
-      url: maintenance.boostAdLink,
+      url: url || maintenance.boostAdLink,
       rewardRiyal: maintenance.boostRewardRiyal,
       rewardCrypto: maintenance.boostRewardRiyal / 10,
-      durationSeconds: 15,
+      durationSeconds: time || 15,
     };
     handleStartExecution(boostTask);
   };
@@ -524,18 +524,18 @@ const App: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: currentUser.id
+          user_id: currentUser.id,
+          initData: TelegramService.getInitData()
         })
       });
       
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to claim bonus');
+      const data = await response.json().catch(() => ({}));
+      
+      if (!response.ok || !data.success) {
+        throw new Error(data.message || 'Failed to claim bonus');
       }
 
-      const data = await response.json();
-      
-      if (data.status === 'success') {
+      if (data.success) {
         const updatedUser = data.user;
         setUsers(prevUsers => {
           const updated = prevUsers.map((u) => u.id === currentUser.id ? { 
@@ -548,9 +548,7 @@ const App: React.FC = () => {
           return updated;
         });
         addTransaction(currentUser.id, 1, 'SAR', 'EARNING', 'Daily Bonus');
-        TelegramService.showAlert('Daily Bonus Claimed! +1 SAR');
-      } else {
-        throw new Error(data.message || 'Failed to claim bonus');
+        TelegramService.showAlert(data.message || 'Daily Bonus Claimed! +1.00 SAR');
       }
     } catch (error: any) {
       console.error('Failed to claim bonus on server:', error);
@@ -905,7 +903,7 @@ const App: React.FC = () => {
       
       {currentTab === 'home' && (
         <ErrorBoundary>
-          <Home user={currentUser} onClaimBonus={handleClaimBonus} leaderboard={leaderboard} userRank={liveRank ?? userRank} onStartBoost={handleStartBoost} isSyncing={isSyncing} onRefresh={() => fetchLiveStats()} currencyInfo={currencyInfo} />
+          <Home user={currentUser} onClaimBonus={handleClaimBonus} leaderboard={leaderboard} userRank={liveRank ?? userRank} onStartBoost={handleStartBoost} isSyncing={isSyncing} onRefresh={() => fetchLiveStats()} currencyInfo={currencyInfo} maintenanceSettings={maintenance} />
         </ErrorBoundary>
       )}
       {currentTab === 'tasks' && <TasksHub user={currentUser} tasks={tasks} adTasks={adTasks} submissions={submissions} adViews={adViews} onStartTask={handleStartExecution} onStartAd={handleStartExecution} onAddTask={handleAddTask} onAddAdTask={handleAddAdTask} isMaintenanceVideos={maintenance.videoTasks && !isAdmin} isMaintenanceAds={maintenance.adTasks && !isAdmin} isMaintenancePromote={maintenance.promote && !isAdmin} onGoToDeposit={() => setCurrentTab('wallet')} isSyncing={isSyncing} />}

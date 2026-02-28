@@ -284,16 +284,33 @@ def api_maintenance():
 def api_daily_bonus():
     data = request.json
     user_id = data.get('user_id')
+    init_data = data.get('initData')
+    
     if not user_id:
-        return jsonify({"status": "error", "message": "Missing user_id"}), 400
+        return jsonify({"success": False, "message": "Missing user_id"}), 400
+    
+    # In a real app, you would validate init_data here using your BOT_TOKEN
+    # For now, we'll proceed with the claim
     
     success, message = db.claim_daily_bonus(user_id)
     if success:
         user = db.get_user(user_id)
-        if user and '_id' in user:
-            user['_id'] = str(user['_id'])
-        return jsonify({"status": "success", "message": message, "user": user}), 200
-    return jsonify({"status": "error", "message": message}), 400
+        return jsonify({
+            "success": True, 
+            "message": message, 
+            "new_balance": user.get('balanceRiyal', 0.0),
+            "user": {
+                "balanceRiyal": user.get('balanceRiyal', 0.0),
+                "totalEarningsRiyal": user.get('totalEarningsRiyal', 0.0),
+                "dailyBonusLastClaim": user.get('dailyBonusLastClaim').isoformat() if hasattr(user.get('dailyBonusLastClaim'), 'isoformat') else user.get('dailyBonusLastClaim')
+            }
+        }), 200
+    
+    # Check if it's already claimed to return specific message
+    if "Already claimed" in message:
+        return jsonify({"success": False, "message": "Already claimed"}), 200
+        
+    return jsonify({"success": False, "message": message}), 400
 
 @server.route('/api/verify', methods=['GET'])
 def api_verify():

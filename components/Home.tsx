@@ -8,13 +8,14 @@ interface HomeProps {
   onClaimBonus: () => void;
   leaderboard: User[];
   userRank: number;
-  onStartBoost: () => void;
+  onStartBoost: (url: string, time: number) => void;
   isSyncing?: boolean;
   onRefresh?: () => void;
   currencyInfo: CurrencyInfo;
+  maintenanceSettings: any;
 }
 
-const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, onStartBoost, isSyncing, onRefresh, currencyInfo }) => {
+const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, onStartBoost, isSyncing, onRefresh, currencyInfo, maintenanceSettings }) => {
   const [canClaimBonus, setCanClaimBonus] = useState(false);
   const [boostCooldown, setBoostCooldown] = useState<string | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
@@ -102,7 +103,9 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
     } catch (err: any) {
       // Check if it's a fetch error (likely backend unreachable in preview)
       if (err.message === 'Failed to fetch' || err.name === 'TypeError' || err.message?.includes('network')) {
-        TelegramService.showAlert('Bonus system is ready! It will work once you are live on Telegram.');
+        TelegramService.showAlert('Server not responding. Please check your connection or try again later.');
+      } else if (err.message === 'Already claimed') {
+        TelegramService.showAlert('You already claimed your bonus today!');
       } else {
         setClaimError(err.message || 'Server busy, try again later');
         setTimeout(() => setClaimError(null), 3000);
@@ -266,7 +269,7 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
         onClick={() => {
           if (!boostCooldown) {
             TelegramService.haptic('medium');
-            onStartBoost();
+            onStartBoost(maintenanceSettings.boostAdLink, 15);
           }
         }}
         disabled={!!boostCooldown}

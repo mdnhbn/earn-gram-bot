@@ -23,6 +23,10 @@ export const TelegramService = {
     return tg?.initDataUnsafe?.user || { id: 0, username: 'Guest' };
   },
 
+  getInitData: () => {
+    return getTg()?.initData || '';
+  },
+
   close: () => {
     getTg()?.close();
   },
