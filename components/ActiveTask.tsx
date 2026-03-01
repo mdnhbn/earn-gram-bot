@@ -126,7 +126,7 @@ const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaus
             <iframe 
               src={playerUrl}
               className="w-full h-full border-none"
-              allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+              allow="autoplay; fullscreen"
               title="Secure Player"
               id="task-frame"
               onError={() => setHasLoadError(true)}

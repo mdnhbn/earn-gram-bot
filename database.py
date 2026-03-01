@@ -39,7 +39,13 @@ REF_PERCENTAGES = [0.10, 0.05, 0.02, 0.01]
 def get_user(user_id):
     """Fetch user by Telegram ID."""
     try:
+        if not user_id:
+            logger.error("get_user called with empty user_id")
+            return None
         return users_col.find_one({"id": int(user_id)})
+    except ValueError:
+        logger.error(f"Invalid user_id format: {user_id}")
+        return None
     except Exception as e:
         logger.error(f"Error fetching user {user_id}: {e}")
         return None
@@ -98,6 +104,9 @@ def add_strike(user_id):
 def process_reward(user_id, amount_riyal, task_name="Video Task"):
     """Adds balance to user and pays out 4 levels of referrals."""
     try:
+        # Ensure user_id is integer
+        user_id = int(user_id)
+        
         # 1. Update primary user
         users_col.update_one(
             {"id": user_id},

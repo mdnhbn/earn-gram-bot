@@ -35,8 +35,8 @@ def api_user():
 def api_update_balance():
     try:
         data = request.json
-        user_id = data.get('id')
-        amount = data.get('amount', 0)
+        user_id = int(data.get('id'))
+        amount = float(data.get('amount', 0))
         task_name = data.get('task_name', 'Task')
         
         print(f"[DEBUG] Updating balance for user {user_id}: {amount} SAR for {task_name}")
@@ -116,21 +116,59 @@ def api_sync_security():
 
 @server.route('/api/admin/user_details/<int:user_id>', methods=['GET'])
 def api_admin_user_details(user_id):
-    admin_id = request.args.get('admin_id')
-    if not admin_id or int(admin_id) != 929198867:
-        return jsonify({"status": "error", "message": "Unauthorized"}), 403
-    
-    user = db.get_user(user_id)
-    if user:
-        return jsonify({
-            "status": "success",
-            "username": user.get("username"),
-            "balance_sar": user.get("balanceRiyal", 0.0),
-            "balance_usdt": user.get("balanceCrypto", 0.0),
-            "device_id": user.get("deviceId"),
-            "last_ip": user.get("lastIp")
-        }), 200
-    return jsonify({"status": "error", "message": "User not found"}), 404
+    try:
+        admin_id = request.args.get('admin_id')
+        print(f"[DEBUG] Fetching user details for {user_id} requested by admin {admin_id}")
+        
+        if not admin_id or int(admin_id) != 929198867:
+            print(f"[ERROR] Unauthorized access attempt by {admin_id}")
+            return jsonify({"status": "error", "message": "Unauthorized"}), 403
+        
+        user = db.get_user(user_id)
+        if user:
+            print(f"[DEBUG] User {user_id} found: {user.get('username')}")
+            return jsonify({
+                "status": "success",
+                "username": user.get("username"),
+                "balance_sar": user.get("balanceRiyal", 0.0),
+                "balance_usdt": user.get("balanceCrypto", 0.0),
+                "device_id": user.get("deviceId"),
+                "last_ip": user.get("lastIp")
+            }), 200
+        else:
+            print(f"[DEBUG] User {user_id} not found in database")
+            return jsonify({"status": "error", "message": "User not found"}), 404
+    except Exception as e:
+        print(f"[ERROR] api_admin_user_details failed: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@server.route('/api/admin/search_user', methods=['GET'])
+def api_admin_search_user():
+    try:
+        user_id = request.args.get('user_id')
+        admin_id = request.args.get('admin_id')
+        print(f"[DEBUG] Admin {admin_id} searching for user {user_id}")
+        
+        if not admin_id or int(admin_id) != 929198867:
+            return jsonify({"status": "error", "message": "Unauthorized"}), 403
+            
+        if not user_id:
+            return jsonify({"status": "error", "message": "User ID is required"}), 400
+            
+        user = db.get_user(user_id)
+        if user:
+            return jsonify({
+                "status": "success",
+                "username": user.get("username"),
+                "balance_sar": user.get("balanceRiyal", 0.0),
+                "balance_usdt": user.get("balanceCrypto", 0.0),
+                "device_id": user.get("deviceId"),
+                "last_ip": user.get("lastIp")
+            }), 200
+        return jsonify({"status": "error", "message": "User not found"}), 404
+    except Exception as e:
+        print(f"[ERROR] api_admin_search_user failed: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @server.route('/api/admin/update_balance', methods=['POST'])
 def api_admin_update_balance():

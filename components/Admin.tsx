@@ -324,27 +324,34 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
     setIsSearching(true);
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/admin/user_details/${idToSearch}?admin_id=${currentUser.id}`);
+      console.log(`[DEBUG] Searching for user ${idToSearch} at ${apiUrl}/api/admin/search_user`);
+      
+      const res = await fetch(`${apiUrl}/api/admin/search_user?user_id=${idToSearch}&admin_id=${currentUser.id}`);
+      
       const data = await res.json();
-      if (data.status === 'success') {
+      
+      if (res.ok && data.status === 'success') {
         const userIdNum = parseInt(idToSearch);
         setSelectedUserId(userIdNum);
         setSearchedUser({
           id: userIdNum,
           username: data.username,
+          balance_sar: data.balance_sar,
+          balance_usdt: data.balance_usdt,
           balanceRiyal: data.balance_sar,
           balanceCrypto: data.balance_usdt,
           deviceId: data.device_id,
           lastIp: data.last_ip
         });
       } else {
-        TelegramService.showAlert('User not found');
+        console.warn(`[WARN] Search failed: ${data.message || 'User not found'}`);
+        TelegramService.showAlert(data.message || 'User not found');
         setSearchedUser(null);
         setSelectedUserId(null);
       }
     } catch (err) {
-      console.error(err);
-      TelegramService.showAlert('Error searching user');
+      console.error('[ERROR] handleSearchUser Exception:', err);
+      TelegramService.showAlert('Error searching user. Check console for details.');
     } finally {
       setIsSearching(false);
     }
