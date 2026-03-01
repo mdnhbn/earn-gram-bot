@@ -32,6 +32,17 @@
         .timer-glow {
             text-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
         }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
     </style>
 </head>
 <body>
@@ -51,9 +62,10 @@
 
         <!-- Video Player Section -->
         <div class="flex-1 bg-black relative video-container" id="player-slot">
-            <!-- Dynamic Iframe will be injected here -->
-            <div id="loading" class="absolute inset-0 flex items-center justify-center bg-slate-900">
-                <div class="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <!-- Loading Spinner -->
+            <div id="loading-spinner" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 z-10">
+                <div class="loader mb-4"></div>
+                <p class="text-[10px] text-slate-500 font-black uppercase tracking-widest animate-pulse">Loading Secure Stream...</p>
             </div>
             
             <!-- Fallback Message (Hidden by default) -->
@@ -95,7 +107,7 @@
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        const videoUrl = urlParams.get('url');
+        let videoUrl = urlParams.get('url');
         const headerAdScript = urlParams.get('headerAd');
         const footerAdScript = urlParams.get('footerAd');
         let timeLeft = parseInt(urlParams.get('time')) || 60;
@@ -110,6 +122,12 @@
         const claimBtn = document.getElementById('claim-btn');
         const fallbackZone = document.getElementById('fallback-zone');
         const officialLink = document.getElementById('official-link');
+        const loadingSpinner = document.getElementById('loading-spinner');
+
+        // Force HTTPS
+        if (videoUrl && videoUrl.startsWith('http://')) {
+            videoUrl = videoUrl.replace('http://', 'https://');
+        }
 
         // 0. Inject Ads
         function injectAds() {
@@ -135,23 +153,24 @@
         function initPlayer() {
             if (!videoUrl) {
                 playerSlot.innerHTML = '<div class="flex items-center justify-center h-full text-red-500">Invalid URL</div>';
+                loadingSpinner.classList.add('hidden');
                 return;
             }
 
             const platform = urlParams.get('platform');
             let embedHtml = '';
-            const allowAttr = "autoplay; fullscreen; picture-in-picture; encrypted-media; gyroscope";
+            const allowAttr = "autoplay; encrypted-media; fullscreen; picture-in-picture";
 
-            // YouTube Conversion
+            // Aggressive YouTube Conversion
             if (platform === 'YouTube' || videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
                 const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
                 const match = videoUrl.match(regExp);
                 const id = (match && match[2].length === 11) ? match[2] : '';
                 if (id) {
-                    embedHtml = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1&mute=0" allow="${allowAttr}"></iframe>`;
+                    embedHtml = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1&rel=0&showinfo=0" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
                 }
             } 
-            // Dailymotion Conversion
+            // Aggressive Dailymotion Conversion
             else if (platform === 'Dailymotion' || videoUrl.includes('dailymotion.com') || videoUrl.includes('dai.ly')) {
                 let id = '';
                 if (videoUrl.includes('dai.ly')) {
@@ -161,38 +180,38 @@
                     id = videoUrl.split('/video/')[1]?.split('?')[0];
                 }
                 if (id) {
-                    embedHtml = `<iframe src="https://www.dailymotion.com/embed/video/${id}?autoplay=1" allow="${allowAttr}"></iframe>`;
+                    embedHtml = `<iframe src="https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=1" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
                 }
             }
             // TikTok
             else if (platform === 'TikTok' || videoUrl.includes('tiktok.com')) {
                 const id = videoUrl.split('/video/')[1]?.split('?')[0];
                 if (id) {
-                    embedHtml = `<iframe src="https://www.tiktok.com/embed/v2/${id}" allow="${allowAttr}"></iframe>`;
+                    embedHtml = `<iframe src="https://www.tiktok.com/embed/v2/${id}" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
                 }
             } 
             // Vimeo
             else if (platform === 'Vimeo' || videoUrl.includes('vimeo.com')) {
                 const id = videoUrl.split('/').pop()?.split('?')[0];
                 if (id) {
-                    embedHtml = `<iframe src="https://player.vimeo.com/video/${id}?autoplay=1&muted=0" allow="${allowAttr}"></iframe>`;
+                    embedHtml = `<iframe src="https://player.vimeo.com/video/${id}?autoplay=1&muted=0" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
                 }
             } 
             // Facebook
             else if (platform === 'Facebook' || videoUrl.includes('facebook.com')) {
-                embedHtml = `<iframe src="https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(videoUrl)}&show_text=0&autoplay=1" allow="${allowAttr}"></iframe>`;
+                embedHtml = `<iframe src="https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(videoUrl)}&show_text=0&autoplay=1" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
             } 
             // Custom MP4
             else if (platform === 'Custom' || videoUrl.endsWith('.mp4')) {
-                embedHtml = `<video src="${videoUrl}" autoplay controls class="w-full h-full" oncontextmenu="return false;" controlsList="nodownload"></video>`;
+                embedHtml = `<video src="${videoUrl}" autoplay controls class="w-full h-full" oncontextmenu="return false;" controlsList="nodownload" onloadeddata="document.getElementById('loading-spinner').classList.add('hidden')"></video>`;
             } 
             // Generic Fallback
             else {
-                embedHtml = `<iframe src="${videoUrl}" allow="${allowAttr}"></iframe>`;
+                embedHtml = `<iframe src="${videoUrl}" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
             }
 
             if (embedHtml) {
-                playerSlot.innerHTML = embedHtml;
+                playerSlot.innerHTML += embedHtml;
             } else {
                 showFallback();
             }
@@ -201,7 +220,7 @@
         function showFallback() {
             fallbackZone.classList.remove('hidden');
             officialLink.href = videoUrl;
-            document.getElementById('loading').classList.add('hidden');
+            loadingSpinner.classList.add('hidden');
         }
 
         // 2. Timer Logic

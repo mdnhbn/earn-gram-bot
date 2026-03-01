@@ -33,15 +33,22 @@ def api_user():
 
 @server.route('/api/update_balance', methods=['POST'])
 def api_update_balance():
-    data = request.json
-    user_id = data.get('id')
-    amount = data.get('amount', 0)
-    task_name = data.get('task_name', 'Task')
-    db.process_reward(user_id, amount, task_name)
-    user = db.get_user(user_id)
-    if '_id' in user:
-        user['_id'] = str(user['_id'])
-    return jsonify(user)
+    try:
+        data = request.json
+        user_id = data.get('id')
+        amount = data.get('amount', 0)
+        task_name = data.get('task_name', 'Task')
+        
+        print(f"[DEBUG] Updating balance for user {user_id}: {amount} SAR for {task_name}")
+        
+        db.process_reward(user_id, amount, task_name)
+        user = db.get_user(user_id)
+        if user and '_id' in user:
+            user['_id'] = str(user['_id'])
+        return jsonify(user or {"status": "error", "message": "User not found"})
+    except Exception as e:
+        print(f"[ERROR] Balance update failed: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 @server.route('/api/user_stats/<int:user_id>', methods=['GET'])
 def api_user_stats(user_id):
