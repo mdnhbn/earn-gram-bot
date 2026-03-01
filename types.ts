@@ -88,7 +88,7 @@ export interface WithdrawalRequest {
   country?: string;
   method: string;
   address: string;
-  status: 'PENDING' | 'COMPLETED' | 'FAILED';
+  status: 'PENDING' | 'COMPLETED' | 'FAILED' | 'APPROVED' | 'REJECTED';
   createdAt: string;
 }
 
@@ -109,6 +109,7 @@ export interface MaintenanceSettings {
   paymentDetails: AdminPaymentDetails;
   boostAdLink: string;
   boostRewardRiyal: number;
+  boostDuration: number;
   headerAdScript?: string;
   footerAdScript?: string;
   supportLink: string;

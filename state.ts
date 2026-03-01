@@ -130,6 +130,7 @@ export const getMaintenanceSettings = (): MaintenanceSettings => {
     },
     boostAdLink: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', // Functional placeholder
     boostRewardRiyal: 0.05,
+    boostDuration: 15,
     headerAdScript: '',
     footerAdScript: '',
     supportLink: 'https://t.me/EarnGramSupport',

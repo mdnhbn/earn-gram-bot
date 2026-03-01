@@ -1,7 +1,7 @@
 import os
 import logging
 from pymongo import MongoClient
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -199,6 +199,129 @@ def request_withdrawal(user_id, amount, method, address, currency="SAR"):
         logger.error(f"Error requesting withdrawal for user {user_id}: {e}")
         return False, "An error occurred while processing the withdrawal"
 
+def get_payout_stats():
+    """Calculate global payout statistics using MongoDB aggregation."""
+    try:
+        now = datetime.utcnow()
+        last_24h = now - timedelta(hours=24)
+        start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+        # Base match for completed withdrawals
+        base_match = {"status": "COMPLETED"}
+
+        # Total Stats
+        total_pipeline = [
+            {"$match": base_match},
+            {"$group": {
+                "_id": "$currency",
+                "totalAmount": {"$sum": "$amount"},
+                "count": {"$sum": 1},
+                "uniqueUsers": {"$addToSet": "$userId"}
+            }}
+        ]
+        
+        # Daily Stats
+        daily_pipeline = [
+            {"$match": {**base_match, "processedAt": {"$gte": last_24h}}},
+            {"$group": {
+                "_id": "$currency",
+                "totalAmount": {"$sum": "$amount"}
+            }}
+        ]
+
+        # Monthly Stats
+        monthly_pipeline = [
+            {"$match": {**base_match, "processedAt": {"$gte": start_of_month}}},
+            {"$group": {
+                "_id": "$currency",
+                "totalAmount": {"$sum": "$amount"}
+            }}
+        ]
+
+        totals = list(withdrawals_col.aggregate(total_pipeline))
+        daily = list(withdrawals_col.aggregate(daily_pipeline))
+        monthly = list(withdrawals_col.aggregate(monthly_pipeline))
+
+        # Unique users count (global)
+        unique_users_pipeline = [
+            {"$match": base_match},
+            {"$group": {"_id": None, "users": {"$addToSet": "$userId"}}},
+            {"$project": {"count": {"$size": "$users"}}}
+        ]
+        unique_users_res = list(withdrawals_col.aggregate(unique_users_pipeline))
+        total_users = unique_users_res[0]['count'] if unique_users_res else 0
+
+        stats = {
+            "totalSAR": 0.0,
+            "totalUSDT": 0.0,
+            "totalUsers": total_users,
+            "dailySAR": 0.0,
+            "dailyUSDT": 0.0,
+            "monthlySAR": 0.0,
+            "monthlyUSDT": 0.0
+        }
+
+        for item in totals:
+            if item['_id'] == 'SAR': stats['totalSAR'] = item['totalAmount']
+            else: stats['totalUSDT'] = item['totalAmount']
+            
+        for item in daily:
+            if item['_id'] == 'SAR': stats['dailySAR'] = item['totalAmount']
+            else: stats['dailyUSDT'] = item['totalAmount']
+
+        for item in monthly:
+            if item['_id'] == 'SAR': stats['monthlySAR'] = item['totalAmount']
+            else: stats['monthlyUSDT'] = item['totalAmount']
+
+        return stats
+    except Exception as e:
+        logger.error(f"Error calculating payout stats: {e}")
+        return None
+    """Fetch withdrawal history for a specific user."""
+    try:
+        withdrawals = list(withdrawals_col.find({"userId": int(user_id)}).sort("createdAt", -1))
+        for w in withdrawals:
+            w['_id'] = str(w['_id'])
+        return withdrawals
+    except Exception as e:
+        logger.error(f"Error fetching withdrawals for user {user_id}: {e}")
+        return []
+
+def get_all_withdrawals(status=None):
+    """Fetch all withdrawal requests, optionally filtered by status."""
+    try:
+        query = {"status": status} if status else {}
+        withdrawals = list(withdrawals_col.find(query).sort("createdAt", -1))
+        for w in withdrawals:
+            w['_id'] = str(w['_id'])
+        return withdrawals
+    except Exception as e:
+        logger.error(f"Error fetching all withdrawals: {e}")
+        return []
+
+def process_withdrawal_action(withdrawal_id, action):
+    """Approve or Reject a withdrawal."""
+    from bson import ObjectId
+    try:
+        status = "COMPLETED" if action == "approve" else "REJECTED"
+        withdrawal = withdrawals_col.find_one({"_id": ObjectId(withdrawal_id)})
+        
+        if not withdrawal or withdrawal['status'] != 'PENDING':
+            return False, "Withdrawal not found or already processed"
+            
+        # If rejected, refund balance
+        if action == "reject":
+            field = "balanceRiyal" if withdrawal['currency'] == "SAR" else "balanceCrypto"
+            users_col.update_one({"id": withdrawal['userId']}, {"$inc": {field: withdrawal['amount']}})
+            
+        withdrawals_col.update_one(
+            {"_id": ObjectId(withdrawal_id)},
+            {"$set": {"status": status, "processedAt": datetime.utcnow()}}
+        )
+        return True, f"Withdrawal {status.lower()} successfully"
+    except Exception as e:
+        logger.error(f"Error processing withdrawal {withdrawal_id}: {e}")
+        return False, str(e)
 def get_user_stats(user_id):
     """Get the current balance and rank of a user."""
     try:

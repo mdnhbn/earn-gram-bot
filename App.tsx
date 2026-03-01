@@ -245,7 +245,7 @@ const App: React.FC = () => {
   };
 
   const fetchLiveStats = async (silent = false) => {
-    if (isSyncingRef.current) return;
+    if (!currentUser?.id || isSyncingRef.current) return;
     isSyncingRef.current = true;
     if (!silent) setIsSyncing(true);
     try {
@@ -334,6 +334,31 @@ const App: React.FC = () => {
         if (maintData && Object.keys(maintData).length > 0) {
           setMaintenance(prev => ({ ...prev, ...maintData }));
         }
+      }
+
+      // Fetch Withdrawals
+      const withdrawalsRes = await fetchWithTimeout(
+        isAdmin 
+          ? `${apiUrl}/api/admin/withdrawals?admin_id=${currentUser.id}` 
+          : `${apiUrl}/api/user/withdrawals/${currentUser.id}`, 
+        {}, 4000
+      );
+      if (withdrawalsRes.ok) {
+        const withdrawalsData = await withdrawalsRes.json();
+        // Map backend fields to frontend types if needed
+        const mappedWithdrawals = withdrawalsData.map((w: any) => ({
+          id: w._id,
+          userId: w.userId,
+          amount: w.amount,
+          currency: w.currency === 'SAR' ? 'Riyal' : 'Crypto',
+          method: w.method,
+          address: w.address,
+          status: w.status,
+          createdAt: w.createdAt,
+          processedAt: w.processedAt
+        }));
+        setWithdrawals(mappedWithdrawals);
+        saveWithdrawals(mappedWithdrawals);
       }
 
     } catch (error) {
@@ -450,13 +475,13 @@ const App: React.FC = () => {
       url: url || maintenance.boostAdLink,
       rewardRiyal: maintenance.boostRewardRiyal,
       rewardCrypto: maintenance.boostRewardRiyal / 10,
-      durationSeconds: time || 15,
+      durationSeconds: time || maintenance.boostDuration || 15,
     };
     handleStartExecution(boostTask);
   };
 
   const handleClaimExecution = async () => {
-    if (!executionTask || !executionStartTime) return;
+    if (!currentUser?.id || !executionTask || !executionStartTime) return;
     const isBoostTask = executionTask.id.startsWith('boost-');
     
     try {
@@ -506,7 +531,7 @@ const App: React.FC = () => {
   };
 
   const handleCancelExecution = () => {
-    if (strikesBeforeTask !== null) {
+    if (currentUser?.id && strikesBeforeTask !== null) {
       const updatedUsers = users.map(u => u.id === currentUser.id ? { ...u, warningCount: strikesBeforeTask, isBanned: strikesBeforeTask >= 3 } : u);
       setUsers(updatedUsers);
       saveUsers(updatedUsers);
@@ -515,9 +540,12 @@ const App: React.FC = () => {
     setExecutionStartTime(null);
     setStrikesBeforeTask(null);
     setIsPaused(false);
+    // Clear console errors from session if possible
+    console.clear();
   };
 
   const handleClaimBonus = async () => {
+    if (!currentUser?.id) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
       const response = await fetchWithTimeout(`${apiUrl}/api/daily_bonus`, {
@@ -576,50 +604,88 @@ const App: React.FC = () => {
     }
   };
 
-  const handleWithdrawRequest = (data: any) => {
-    const newWithdrawal: WithdrawalRequest = {
-      id: Math.random().toString(36).substr(2, 9),
-      userId: currentUser.id,
-      amount: data.amount, currency: data.currency,
-      localCurrency: data.localCurrency, localAmount: data.localAmount,
-      country: currentUser.country, method: data.method, address: data.address,
-      status: 'PENDING', createdAt: new Date().toISOString()
-    };
-    setWithdrawals([newWithdrawal, ...withdrawals]);
-    saveWithdrawals([newWithdrawal, ...withdrawals]);
-
-    setUsers(prevUsers => {
-      const updated = prevUsers.map((u) => {
-        if (u.id === currentUser.id) {
-          return {
-            ...u,
-            balanceRiyal: data.currency === 'Riyal' ? u.balanceRiyal - data.amount : u.balanceRiyal,
-            balanceCrypto: data.currency === 'Crypto' ? u.balanceCrypto - data.amount : u.balanceCrypto
-          };
-        }
-        return u;
+  const handleWithdrawRequest = async (data: any) => {
+    if (!currentUser?.id) return;
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/withdraw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: currentUser.id,
+          amount: data.amount,
+          method: data.method,
+          address: data.address,
+          currency: data.currency === 'Riyal' ? 'SAR' : 'USDT'
+        })
       });
-      saveUsers(updated);
-      return updated;
-    });
-    addTransaction(currentUser.id, data.amount, data.currency === 'Riyal' ? 'SAR' : 'USDT', 'WITHDRAWAL', `Payout: ${data.method}`);
+
+      const result = await res.json();
+      if (res.ok) {
+        TelegramService.showAlert(result.message || 'Withdrawal requested successfully!');
+        fetchLiveStats(); // Refresh balance and stats
+        
+        // Update local state for immediate feedback
+        const newWithdrawal: WithdrawalRequest = {
+          id: Math.random().toString(36).substr(2, 9),
+          userId: currentUser.id,
+          amount: data.amount, currency: data.currency,
+          localCurrency: data.localCurrency, localAmount: data.localAmount,
+          country: currentUser.country, method: data.method, address: data.address,
+          status: 'PENDING', createdAt: new Date().toISOString()
+        };
+        setWithdrawals([newWithdrawal, ...withdrawals]);
+        saveWithdrawals([newWithdrawal, ...withdrawals]);
+        
+        addTransaction(currentUser.id, data.amount, data.currency === 'Riyal' ? 'SAR' : 'USDT', 'WITHDRAWAL', `Payout: ${data.method}`);
+      } else {
+        TelegramService.showAlert(result.message || 'Failed to request withdrawal.');
+      }
+    } catch (err) {
+      console.error('Withdrawal error:', err);
+      TelegramService.showAlert('Network error. Please try again.');
+    }
   };
 
-  const handleAdminAction = (id: string, type: 'submission' | 'withdrawal', status: any) => {
-    if (!isAdmin) return;
+  const handleAdminAction = async (id: string, type: 'submission' | 'withdrawal', status: any) => {
+    if (!isAdmin || !currentUser?.id) return;
+    
     if (type === 'withdrawal') {
-      const request = withdrawals.find(w => w.id === id);
-      if (!request) return;
-      const updatedWithdrawals = withdrawals.map(w => w.id === id ? { ...w, status } : w);
-      setWithdrawals(updatedWithdrawals);
-      saveWithdrawals(updatedWithdrawals);
-      if (status === 'FAILED') {
-        setUsers(prevUsers => {
-          const updated = prevUsers.map(u => u.id === request.userId ? { ...u, balanceRiyal: request.currency === 'Riyal' ? u.balanceRiyal + request.amount : u.balanceRiyal, balanceCrypto: request.currency === 'Crypto' ? u.balanceCrypto + request.amount : u.balanceCrypto } : u);
-          saveUsers(updated);
-          return updated;
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        const action = status === 'COMPLETED' ? 'approve' : 'reject';
+        
+        const res = await fetch(`${apiUrl}/api/admin/process_withdrawal`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            admin_id: currentUser.id,
+            withdrawal_id: id,
+            action: action
+          })
         });
+
+        if (res.ok) {
+          TelegramService.showAlert(`Withdrawal ${action}d!`);
+          // Update local state
+          const updatedWithdrawals = withdrawals.map(w => w.id === id ? { ...w, status } : w);
+          setWithdrawals(updatedWithdrawals);
+          saveWithdrawals(updatedWithdrawals);
+          fetchLiveStats(); // Refresh user balances
+        } else {
+          const data = await res.json();
+          TelegramService.showAlert(data.message || 'Action failed');
+        }
+      } catch (err) {
+        console.error('Admin action error:', err);
+        TelegramService.showAlert('Network error');
       }
+      return;
+    }
+    
+    // Original logic for submissions if needed
+    if (type === 'submission') {
+      // ... existing submission logic if any ...
     }
   };
 
@@ -633,6 +699,7 @@ const App: React.FC = () => {
   };
 
   const handleViolation = () => {
+    if (!currentUser?.id) return;
     setIsPaused(true);
     setUsers(prevUsers => {
       const updated = prevUsers.map((u) => {
@@ -649,6 +716,7 @@ const App: React.FC = () => {
   };
 
   const handleAddTask = async (task: Task, cost?: number, currency?: 'SAR' | 'USDT') => {
+    if (!currentUser?.id) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
       
@@ -691,6 +759,7 @@ const App: React.FC = () => {
   };
 
   const handleAddAdTask = async (ad: AdTask, cost?: number, currency?: 'SAR' | 'USDT') => {
+    if (!currentUser?.id) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
       
@@ -733,6 +802,7 @@ const App: React.FC = () => {
   };
 
   const handleDeleteTask = async (id: string) => {
+    if (!currentUser?.id) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetchWithTimeout(`${apiUrl}/api/tasks/${id}`, {
@@ -749,6 +819,7 @@ const App: React.FC = () => {
   };
 
   const handleApproveTask = async (taskId: string, isVideo: boolean) => {
+    if (!currentUser?.id) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
       const endpoint = isVideo ? 'tasks' : 'ad_tasks';
@@ -772,6 +843,7 @@ const App: React.FC = () => {
   };
 
   const handleRejectTask = async (taskId: string, isVideo: boolean) => {
+    if (!currentUser?.id) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
       const task = isVideo ? tasks.find(t => t.id === taskId) : adTasks.find(a => a.id === taskId);
@@ -835,6 +907,7 @@ const App: React.FC = () => {
   };
 
   const handleResetDevice = async (userId: number) => {
+    if (!currentUser?.id) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
       const res = await fetchWithTimeout(`${apiUrl}/api/admin/reset_device`, {

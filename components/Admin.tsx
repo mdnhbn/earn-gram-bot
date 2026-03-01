@@ -29,6 +29,10 @@ interface AdminProps {
 const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, currentUser, maintenanceSettings, onUpdateMaintenance, onAction, onAddTask, onAddAdTask, onDeleteTask, onDeleteAdTask, onUnban, onUpdateBalance, onResetLeaderboard, onApproveTask, onRejectTask, onResetDevice }) => {
   const [activeAdminTab, setActiveAdminTab] = useState<'system' | 'payouts' | 'messaging' | 'balances' | 'tasks' | 'approvals' | 'users' | 'deposits'>('system');
   const [activeSysTab, setActiveSysTab] = useState<'maintenance' | 'ad_config' | 'app_info' | 'payment'>('maintenance');
+  const [payoutStats, setPayoutStats] = useState<any>(null);
+  const [payoutSearch, setPayoutSearch] = useState('');
+  const [payoutSearchResults, setPayoutSearchResults] = useState<WithdrawalRequest[]>([]);
+  const [isSearchingPayouts, setIsSearchingPayouts] = useState(false);
   const [balanceSearch, setBalanceSearch] = useState('');
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [searchedUser, setSearchedUser] = useState<any>(null);
@@ -39,7 +43,8 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
   const [paymentForm, setPaymentForm] = useState<AdminPaymentDetails>(maintenanceSettings.paymentDetails);
   const [boostForm, setBoostForm] = useState({
     link: maintenanceSettings.boostAdLink,
-    reward: maintenanceSettings.boostRewardRiyal.toString()
+    reward: maintenanceSettings.boostRewardRiyal.toString(),
+    duration: (maintenanceSettings.boostDuration || 15).toString()
   });
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
@@ -108,7 +113,53 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
     if (activeAdminTab === 'deposits') {
       fetchDeposits();
     }
+    if (activeAdminTab === 'payouts') {
+      fetchPayoutStats();
+    }
   }, [activeAdminTab]);
+
+  const fetchPayoutStats = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/admin/payout_stats?admin_id=${currentUser.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPayoutStats(data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch payout stats:', err);
+    }
+  };
+
+  const handleSearchPayouts = async () => {
+    if (!payoutSearch) return;
+    setIsSearchingPayouts(true);
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/user/withdrawals/${payoutSearch}`);
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = data.map((w: any) => ({
+          id: w._id,
+          userId: w.userId,
+          amount: w.amount,
+          currency: w.currency === 'SAR' ? 'Riyal' : 'Crypto',
+          method: w.method,
+          address: w.address,
+          status: w.status,
+          createdAt: w.createdAt,
+          processedAt: w.processedAt
+        }));
+        setPayoutSearchResults(mapped);
+      } else {
+        setPayoutSearchResults([]);
+      }
+    } catch (err) {
+      console.error('Payout search error:', err);
+    } finally {
+      setIsSearchingPayouts(false);
+    }
+  };
 
   const fetchDeposits = async () => {
     setIsFetchingDeposits(true);
@@ -259,7 +310,8 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
     onUpdateMaintenance({ 
       ...maintenanceSettings, 
       boostAdLink: boostForm.link, 
-      boostRewardRiyal: parseFloat(boostForm.reward) || 0.05 
+      boostRewardRiyal: parseFloat(boostForm.reward) || 0.05,
+      boostDuration: parseInt(boostForm.duration) || 15
     });
     TelegramService.showAlert('Boost settings updated successfully!');
   };
@@ -957,7 +1009,16 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
                   <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Boost Settings</h3>
                   <form onSubmit={handleUpdateBoostSettings} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
                     <input type="text" placeholder="Boost Ad Link (Direct)" value={boostForm.link} onChange={e => setBoostForm({...boostForm, link: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-                    <input type="number" step="0.01" placeholder="Reward Amount (SAR)" value={boostForm.reward} onChange={e => setBoostForm({...boostForm, reward: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Reward (SAR)</label>
+                        <input type="number" step="0.01" placeholder="Reward Amount (SAR)" value={boostForm.reward} onChange={e => setBoostForm({...boostForm, reward: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Duration (Sec)</label>
+                        <input type="number" placeholder="Duration (Seconds)" value={boostForm.duration} onChange={e => setBoostForm({...boostForm, duration: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
+                      </div>
+                    </div>
                     <button className="w-full bg-blue-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest">Update Boost Config</button>
                   </form>
                 </section>
@@ -1168,25 +1229,145 @@ const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, curre
       )}
 
       {activeAdminTab === 'payouts' && (
-        <section className="space-y-4">
-          <h3 className="font-bold flex items-center gap-2">💰 Pending Withdrawals</h3>
-          {withdrawals.filter(w => w.status === 'PENDING').length === 0 ? (
-            <p className="text-center py-10 opacity-30 italic">No pending requests.</p>
-          ) : (
-            withdrawals.filter(w => w.status === 'PENDING').map(w => (
-              <div key={w.id} className="bg-slate-800 p-4 rounded-2xl border border-slate-700 space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-xs font-bold uppercase">User: {w.userId}</span>
-                  <span className="text-xs font-black text-blue-400">{w.localAmount || w.amount} {w.localCurrency || (w.currency === 'Riyal' ? 'SAR' : 'USDT')}</span>
-                </div>
-                <p className="text-[10px] text-slate-500 break-all">{w.address}</p>
-                <div className="flex gap-2">
-                   <button onClick={() => onAction(w.id, 'withdrawal', 'COMPLETED')} className="flex-1 bg-green-600 py-1.5 rounded-lg text-[10px] font-black uppercase">Approve</button>
-                   <button onClick={() => onAction(w.id, 'withdrawal', 'FAILED')} className="flex-1 bg-red-600/20 text-red-500 py-1.5 rounded-lg text-[10px] font-black uppercase">Reject</button>
-                </div>
+        <section className="space-y-8 animate-in slide-in-from-right duration-300">
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-1">
+              <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Total Paid Out</p>
+              <p className="text-sm font-black text-emerald-400">{payoutStats?.totalSAR.toFixed(2) || '0.00'} SAR</p>
+              <p className="text-[10px] text-slate-400 font-bold">{payoutStats?.totalUSDT.toFixed(2) || '0.00'} USDT</p>
+            </div>
+            <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-1">
+              <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Paid Users</p>
+              <p className="text-xl font-black text-white">{payoutStats?.totalUsers || '0'}</p>
+              <p className="text-[9px] text-slate-500 font-bold uppercase">Unique Accounts</p>
+            </div>
+            <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-1">
+              <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Daily Total</p>
+              <p className="text-sm font-black text-blue-400">{payoutStats?.dailySAR.toFixed(2) || '0.00'} SAR</p>
+              <p className="text-[10px] text-slate-400 font-bold">{payoutStats?.dailyUSDT.toFixed(2) || '0.00'} USDT</p>
+            </div>
+            <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-1">
+              <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Monthly Total</p>
+              <p className="text-sm font-black text-purple-400">{payoutStats?.monthlySAR.toFixed(2) || '0.00'} SAR</p>
+              <p className="text-[10px] text-slate-400 font-bold">{payoutStats?.monthlyUSDT.toFixed(2) || '0.00'} USDT</p>
+            </div>
+          </div>
+
+          {/* Search Bar */}
+          <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-4">
+            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Search Payout History</h3>
+            <div className="flex gap-2">
+              <input 
+                type="number" 
+                placeholder="User ID..." 
+                value={payoutSearch}
+                onChange={e => setPayoutSearch(e.target.value)}
+                className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none"
+              />
+              <button 
+                onClick={handleSearchPayouts}
+                disabled={isSearchingPayouts}
+                className="bg-blue-600 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
+              >
+                {isSearchingPayouts ? '...' : 'FIND'}
+              </button>
+            </div>
+
+            {payoutSearchResults.length > 0 && (
+              <div className="space-y-3 pt-2">
+                <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest">Results for {payoutSearch}</p>
+                {payoutSearchResults.map(w => (
+                  <div key={w.id} className="bg-slate-900/50 p-3 rounded-2xl border border-slate-700 flex justify-between items-center">
+                    <div>
+                      <p className="text-[10px] font-bold">{w.method}</p>
+                      <p className="text-[8px] text-slate-500 uppercase">{new Date(w.createdAt).toLocaleDateString()}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[10px] font-black">{w.amount.toFixed(2)} {w.currency === 'Riyal' ? 'SAR' : 'USDT'}</p>
+                      <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full ${
+                        w.status === 'COMPLETED' ? 'bg-green-500/10 text-green-500' : 'bg-amber-500/10 text-amber-500'
+                      }`}>
+                        {w.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))
-          )}
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest flex items-center gap-2">
+              💰 Pending Withdrawals
+            </h3>
+            {withdrawals.filter(w => w.status === 'PENDING').length === 0 ? (
+              <div className="bg-slate-800/50 rounded-3xl border border-dashed border-slate-700 p-12 text-center space-y-4">
+                <div className="text-4xl opacity-20">💸</div>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">No pending requests.</p>
+              </div>
+            ) : (
+              withdrawals.filter(w => w.status === 'PENDING').map(w => (
+                <div key={w.id} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="text-xs font-bold">User ID: {w.userId}</p>
+                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{w.method} • {w.currency === 'Riyal' ? 'SAR' : 'USDT'}</p>
+                      <p className="text-[10px] text-blue-400 font-mono mt-1 break-all">Address: {w.address}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-green-400 font-bold text-sm">{w.localAmount || w.amount} {w.localCurrency || (w.currency === 'Riyal' ? 'SAR' : 'USDT')}</p>
+                      <p className="text-[8px] text-slate-500 mt-1">{new Date(w.createdAt).toLocaleString()}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button 
+                      onClick={() => onAction(w.id, 'withdrawal', 'COMPLETED')}
+                      className="flex-1 bg-green-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-green-900/20 active:scale-95 transition-all"
+                    >
+                      Approve
+                    </button>
+                    <button 
+                      onClick={() => onAction(w.id, 'withdrawal', 'REJECTED')}
+                      className="flex-1 bg-red-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-900/20 active:scale-95 transition-all"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest flex items-center gap-2">
+              ✅ Processed Payouts
+            </h3>
+            {withdrawals.filter(w => w.status !== 'PENDING').length === 0 ? (
+              <div className="bg-slate-800/30 rounded-3xl border border-dashed border-slate-700/50 p-12 text-center">
+                <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">No processed records found.</p>
+              </div>
+            ) : (
+              withdrawals.filter(w => w.status !== 'PENDING').map(w => (
+                <div key={w.id} className="bg-slate-800/50 p-4 rounded-3xl border border-slate-700/50 flex justify-between items-center opacity-80">
+                  <div>
+                    <p className="text-xs font-bold">User: {w.userId}</p>
+                    <p className="text-[9px] text-slate-500 font-bold uppercase">
+                      {w.method} • {new Date(w.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-xs font-black text-white">{w.amount.toFixed(2)} {w.currency === 'Riyal' ? 'SAR' : 'USDT'}</p>
+                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full mt-1 inline-block ${
+                      w.status === 'COMPLETED' || w.status === 'APPROVED' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
+                    }`}>
+                      {w.status}
+                    </span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </section>
       )}
     </div>

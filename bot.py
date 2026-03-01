@@ -198,7 +198,78 @@ def api_admin_reset_device():
 
 # --- DEPOSIT API ---
 
-@server.route('/api/deposit/crypto', methods=['POST'])
+@server.route('/api/user/withdrawals/<int:user_id>', methods=['GET'])
+def api_user_withdrawals(user_id):
+    try:
+        withdrawals = db.get_user_withdrawals(user_id)
+        return jsonify(withdrawals), 200
+    except Exception as e:
+        print(f"[ERROR] api_user_withdrawals failed: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@server.route('/api/withdraw', methods=['POST'])
+def api_withdraw():
+    try:
+        data = request.json
+        user_id = int(data.get('user_id'))
+        amount = float(data.get('amount'))
+        method = data.get('method')
+        address = data.get('address')
+        currency = data.get('currency', 'SAR')
+        
+        success, message = db.request_withdrawal(user_id, amount, method, address, currency)
+        if success:
+            return jsonify({"status": "success", "message": message}), 200
+        return jsonify({"status": "error", "message": message}), 400
+    except Exception as e:
+        print(f"[ERROR] api_withdraw failed: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@server.route('/api/admin/withdrawals', methods=['GET'])
+def api_admin_withdrawals():
+    try:
+        admin_id = request.args.get('admin_id')
+        if not admin_id or int(admin_id) != 929198867:
+            return jsonify({"status": "error", "message": "Unauthorized"}), 403
+            
+        status = request.args.get('status')
+        withdrawals = db.get_all_withdrawals(status)
+        return jsonify(withdrawals), 200
+    except Exception as e:
+        print(f"[ERROR] api_admin_withdrawals failed: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@server.route('/api/admin/payout_stats', methods=['GET'])
+def api_payout_stats():
+    try:
+        admin_id = request.args.get('admin_id')
+        if not admin_id or int(admin_id) != 929198867:
+            return jsonify({"status": "error", "message": "Unauthorized"}), 403
+            
+        stats = db.get_payout_stats()
+        if stats:
+            return jsonify(stats), 200
+        return jsonify({"status": "error", "message": "Failed to calculate stats"}), 500
+    except Exception as e:
+        print(f"[ERROR] api_payout_stats failed: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+def api_admin_process_withdrawal():
+    try:
+        data = request.json
+        admin_id = data.get('admin_id')
+        if not admin_id or int(admin_id) != 929198867:
+            return jsonify({"status": "error", "message": "Unauthorized"}), 403
+            
+        withdrawal_id = data.get('withdrawal_id')
+        action = data.get('action') # approve or reject
+        
+        success, message = db.process_withdrawal_action(withdrawal_id, action)
+        if success:
+            return jsonify({"status": "success", "message": message}), 200
+        return jsonify({"status": "error", "message": message}), 400
+    except Exception as e:
+        print(f"[ERROR] api_admin_process_withdrawal failed: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
 def api_deposit_crypto():
     data = request.json
     user_id = data.get('user_id')

@@ -151,6 +151,44 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
               <input type="text" value={address} onChange={e => setAddress(e.target.value)} placeholder={mode === 'Local' ? 'Bank details or IBAN' : 'USDT Address'} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-sm outline-none" required />
               <button disabled={isMaintenance} className="w-full py-4 rounded-2xl font-black text-sm bg-blue-600 shadow-xl shadow-blue-900/30">REQUEST PAYOUT</button>
             </form>
+
+            {/* Withdrawal History Section */}
+            <div className="pt-6 border-t border-slate-700/50 space-y-4">
+              <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                📜 Withdrawal History
+              </h3>
+              
+              <div className="space-y-3">
+                {withdrawals.length === 0 ? (
+                  <p className="text-[10px] text-slate-500 italic text-center py-4 bg-slate-900/30 rounded-2xl border border-dashed border-slate-700">
+                    No withdrawal records found.
+                  </p>
+                ) : (
+                  withdrawals.map((w) => (
+                    <div key={w.id} className="bg-slate-900/50 p-4 rounded-2xl border border-slate-700 flex justify-between items-center">
+                      <div className="space-y-1">
+                        <p className="text-xs font-bold">{w.method}</p>
+                        <p className="text-[9px] text-slate-500 font-bold uppercase">
+                          {new Date(w.createdAt).toLocaleDateString()} • {w.currency === 'Riyal' ? 'SAR' : 'USDT'}
+                        </p>
+                      </div>
+                      <div className="text-right space-y-1">
+                        <p className="text-xs font-black text-white">
+                          {w.amount.toFixed(2)} {w.currency === 'Riyal' ? 'SAR' : 'USDT'}
+                        </p>
+                        <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full ${
+                          w.status === 'PENDING' ? 'bg-yellow-500/20 text-yellow-500' :
+                          w.status === 'COMPLETED' || w.status === 'APPROVED' ? 'bg-green-500/20 text-green-500' :
+                          'bg-red-500/20 text-red-500'
+                        }`}>
+                          {w.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -28,6 +28,7 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
   }, []);
 
   useEffect(() => {
+    if (!user?.id) return;
     // Daily Bonus Logic
     if (!user.dailyBonusLastClaim) {
       setCanClaimBonus(true);
@@ -59,7 +60,7 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [user.dailyBonusLastClaim, user.lastBoostClaim]);
+  }, [user?.dailyBonusLastClaim, user?.lastBoostClaim]);
 
   const [isSyncingSlowly, setIsSyncingSlowly] = useState(false);
 
@@ -91,7 +92,7 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
   const [claimError, setClaimError] = useState<string | null>(null);
 
   const handleClaim = async () => {
-    if (!canClaimBonus || isClaiming) return;
+    if (!user?.id || !canClaimBonus || isClaiming) return;
     
     setIsClaiming(true);
     setClaimError(null);
@@ -269,7 +270,7 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
         onClick={() => {
           if (!boostCooldown) {
             TelegramService.haptic('medium');
-            onStartBoost(maintenanceSettings.boostAdLink, 15);
+            onStartBoost(maintenanceSettings.boostAdLink, maintenanceSettings.boostDuration || 15);
           }
         }}
         disabled={!!boostCooldown}
@@ -285,7 +286,9 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
             {boostCooldown ? 'Boost Cooling Down' : 'Boost Earnings'}
           </h4>
           <p className="text-xs text-slate-500">
-            {boostCooldown ? `Available in ${boostCooldown}` : 'Watch a quick ad for instant SAR.'}
+            {boostCooldown 
+              ? `Available in ${boostCooldown}` 
+              : `Watch ${maintenanceSettings.boostDuration || 15}s to earn ${(maintenanceSettings.boostRewardRiyal || 0.05).toFixed(2)} SAR.`}
           </p>
         </div>
         {!boostCooldown && <span className="text-amber-500 font-black text-xs uppercase">Start</span>}

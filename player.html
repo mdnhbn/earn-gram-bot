@@ -159,7 +159,7 @@
 
             const platform = urlParams.get('platform');
             let embedHtml = '';
-            const allowAttr = "autoplay; fullscreen";
+            const allowAttr = "autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen";
 
             // Aggressive YouTube Conversion
             if (platform === 'YouTube' || videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
@@ -167,7 +167,8 @@
                 const match = videoUrl.match(regExp);
                 const id = (match && match[2].length === 11) ? match[2] : '';
                 if (id) {
-                    embedHtml = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1&rel=0&showinfo=0" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
+                    // Force Professional Embed with origin
+                    embedHtml = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1&rel=0&showinfo=0&origin=https://earn-gram-bot.onrender.com" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
                 }
             } 
             // Aggressive Dailymotion Conversion
@@ -180,6 +181,7 @@
                     id = videoUrl.split('/video/')[1]?.split('?')[0];
                 }
                 if (id) {
+                    // Force Professional Embed
                     embedHtml = `<iframe src="https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=1" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
                 }
             }
@@ -270,6 +272,10 @@
         claimBtn.onclick = () => {
             const userVal = parseInt(captchaInput.value);
             if (userVal === captchaAnswer) {
+                // Prevent multiple clicks
+                claimBtn.disabled = true;
+                claimBtn.innerText = 'Claiming...';
+                
                 window.parent.postMessage({ type: 'CLAIM_TASK' }, '*');
                 
                 if (window.Telegram?.WebApp) {
