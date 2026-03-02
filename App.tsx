@@ -540,6 +540,10 @@ const App: React.FC = () => {
     setExecutionStartTime(null);
     setStrikesBeforeTask(null);
     setIsPaused(false);
+    // Ensure we return to a valid tab
+    if (currentTab === 'admin') {
+      setCurrentTab('home');
+    }
     // Clear console errors from session if possible
     console.clear();
   };

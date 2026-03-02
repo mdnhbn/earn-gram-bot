@@ -16,10 +16,19 @@
             height: 100vh;
             margin: 0;
         }
-        .video-container iframe {
+        .video-container {
             width: 100%;
             height: 100%;
+            background: #000;
+            position: relative;
+        }
+        .video-container iframe {
+            width: 100% !important;
+            height: 100% !important;
             border: none;
+            position: absolute;
+            top: 0;
+            left: 0;
         }
         .blur-overlay {
             display: none;
@@ -61,11 +70,11 @@
         </div>
 
         <!-- Video Player Section -->
-        <div class="flex-1 bg-black relative video-container" id="player-slot">
+        <div class="flex-1 bg-black relative video-container" id="player-slot" style="width: 100%; height: 100%; min-height: 200px;">
             <!-- Loading Spinner -->
-            <div id="loading-spinner" class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900 z-10">
+            <div id="loading-spinner" class="absolute inset-0 flex flex-col items-center justify-center bg-black z-10">
                 <div class="loader mb-4"></div>
-                <p class="text-[10px] text-slate-500 font-black uppercase tracking-widest animate-pulse">Loading Secure Stream...</p>
+                <p class="text-sm text-white font-bold uppercase tracking-widest animate-pulse">Loading video...</p>
             </div>
             
             <!-- Fallback Message (Hidden by default) -->
@@ -167,8 +176,8 @@
                 const match = videoUrl.match(regExp);
                 const id = (match && match[2].length === 11) ? match[2] : '';
                 if (id) {
-                    // Force Professional Embed with origin
-                    embedHtml = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1&rel=0&showinfo=0&origin=https://earn-gram-bot.onrender.com" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
+                    // Force Professional Embed with origin and explicit dimensions
+                    embedHtml = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1&rel=0&showinfo=0&origin=https://earn-gram-bot.onrender.com" allow="${allowAttr}" style="width:100%;height:100%;" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
                 }
             } 
             // Aggressive Dailymotion Conversion
@@ -182,34 +191,34 @@
                 }
                 if (id) {
                     // Force Professional Embed
-                    embedHtml = `<iframe src="https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=1" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
+                    embedHtml = `<iframe src="https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=1" allow="${allowAttr}" style="width:100%;height:100%;" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
                 }
             }
             // TikTok
             else if (platform === 'TikTok' || videoUrl.includes('tiktok.com')) {
                 const id = videoUrl.split('/video/')[1]?.split('?')[0];
                 if (id) {
-                    embedHtml = `<iframe src="https://www.tiktok.com/embed/v2/${id}" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
+                    embedHtml = `<iframe src="https://www.tiktok.com/embed/v2/${id}" allow="${allowAttr}" style="width:100%;height:100%;" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
                 }
             } 
             // Vimeo
             else if (platform === 'Vimeo' || videoUrl.includes('vimeo.com')) {
                 const id = videoUrl.split('/').pop()?.split('?')[0];
                 if (id) {
-                    embedHtml = `<iframe src="https://player.vimeo.com/video/${id}?autoplay=1&muted=0" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
+                    embedHtml = `<iframe src="https://player.vimeo.com/video/${id}?autoplay=1&muted=0" allow="${allowAttr}" style="width:100%;height:100%;" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
                 }
             } 
             // Facebook
             else if (platform === 'Facebook' || videoUrl.includes('facebook.com')) {
-                embedHtml = `<iframe src="https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(videoUrl)}&show_text=0&autoplay=1" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
+                embedHtml = `<iframe src="https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(videoUrl)}&show_text=0&autoplay=1" allow="${allowAttr}" style="width:100%;height:100%;" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
             } 
             // Custom MP4
             else if (platform === 'Custom' || videoUrl.endsWith('.mp4')) {
-                embedHtml = `<video src="${videoUrl}" autoplay controls class="w-full h-full" oncontextmenu="return false;" controlsList="nodownload" onloadeddata="document.getElementById('loading-spinner').classList.add('hidden')"></video>`;
+                embedHtml = `<video src="${videoUrl}" autoplay controls class="w-full h-full" style="width:100%;height:100%;" oncontextmenu="return false;" controlsList="nodownload" onloadeddata="document.getElementById('loading-spinner').classList.add('hidden')"></video>`;
             } 
             // Generic Fallback
             else {
-                embedHtml = `<iframe src="${videoUrl}" allow="${allowAttr}" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
+                embedHtml = `<iframe src="${videoUrl}" allow="${allowAttr}" style="width:100%;height:100%;" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
             }
 
             if (embedHtml) {

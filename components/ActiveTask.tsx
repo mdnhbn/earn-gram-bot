@@ -16,10 +16,16 @@ const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaus
   const PLAYER_PATH = "player.html";
   const [isConfirmingExit, setIsConfirmingExit] = useState(false);
   const [hasLoadError, setHasLoadError] = useState(false);
+  const [isIframeLoading, setIsIframeLoading] = useState(true);
   const isConfirmingRef = useRef(false);
 
   const isVideoTask = 'platform' in task;
   const duration = isVideoTask ? (task as Task).timerSeconds : (task as AdTask).durationSeconds;
+
+  useEffect(() => {
+    // Reset loading state when task changes
+    setIsIframeLoading(true);
+  }, [task.id]);
 
   useEffect(() => {
     // Listen for messages from the player.html iframe
@@ -65,7 +71,7 @@ const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaus
     setIsConfirmingExit(true);
     isConfirmingRef.current = true;
     
-    TelegramService.showConfirm('⚠️ Warning: Leaving now will cancel your current task progress. Do you want to exit?', (ok) => {
+    TelegramService.showConfirm('⚠️ Warning: Leaving this page will cancel your current progress. Are you sure you want to go back?', (ok) => {
       if (ok) {
         onCancel();
       } else {
@@ -123,12 +129,20 @@ const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaus
               </div>
             )}
             
+            {isIframeLoading && !hasLoadError && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10">
+                <div className="w-10 h-10 border-4 border-slate-800 border-t-blue-500 rounded-full animate-spin mb-4" />
+                <p className="text-sm text-white font-bold uppercase tracking-widest animate-pulse">Loading video...</p>
+              </div>
+            )}
+            
             <iframe 
               src={playerUrl}
-              className="w-full h-full border-none"
+              className={`w-full h-full border-none ${isIframeLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
               allow="autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
               title="Secure Player"
               id="task-frame"
+              onLoad={() => setIsIframeLoading(false)}
               onError={() => setHasLoadError(true)}
             />
           </>
