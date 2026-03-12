@@ -1,1 +1,86 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-primary: #0088cc;
+  --color-secondary: #00c6ff;
+  --color-accent: #f27d26;
+  --color-glass: rgba(255, 255, 255, 0.1);
+  --color-glass-dark: rgba(0, 0, 0, 0.2);
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+}
+
+@layer base {
+  body {
+    @apply bg-[#0f172a] text-white font-sans overflow-x-hidden;
+    background: radial-gradient(circle at top right, #1e293b, #0f172a);
+    min-height: 100vh;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@layer components {
+  .glass-card {
+    @apply backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl shadow-xl;
+  }
+  
+  .glass-card-dark {
+    @apply backdrop-blur-xl bg-black/20 border border-white/10 rounded-2xl shadow-xl;
+  }
+
+  .btn-premium {
+    @apply relative overflow-hidden transition-all duration-300 active:scale-95 rounded-xl font-semibold;
+    background: linear-gradient(135deg, #0088cc, #00c6ff);
+    box-shadow: 0 4px 15px rgba(0, 136, 204, 0.3);
+  }
+
+  .btn-premium:hover {
+    box-shadow: 0 6px 20px rgba(0, 136, 204, 0.5);
+    filter: brightness(1.1);
+  }
+
+  .btn-glow {
+    box-shadow: 0 0 15px rgba(0, 136, 204, 0.6);
+  }
+
+  .balance-card {
+    @apply relative overflow-hidden rounded-3xl p-6 text-white;
+    background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .balance-card::before {
+    content: '';
+    @apply absolute -top-24 -right-24 w-48 h-48 rounded-full blur-3xl opacity-20;
+    background: #00c6ff;
+  }
+
+  .balance-card::after {
+    content: '';
+    @apply absolute -bottom-24 -left-24 w-48 h-48 rounded-full blur-3xl opacity-20;
+    background: #0088cc;
+  }
+
+  .nav-floating {
+    @apply fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-3 glass-card-dark rounded-full z-50;
+    width: calc(100% - 3rem);
+    max-width: 400px;
+  }
+
+  .skeleton {
+    @apply bg-white/5 animate-pulse rounded-lg;
+  }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s infinite;
+}

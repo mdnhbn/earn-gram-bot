@@ -36,7 +36,12 @@ app.get('/health', (req, res) => {
 
 // MongoDB Connection
 const MONGO_URI = process.env.MONGO_URI || 'mongodb+srv://admin:password@cluster.mongodb.net/earngram?retryWrites=true&w=majority';
+const MONGO_URI2 = process.env.MONGO_URI2 || MONGO_URI;
+const MONGO_URI3 = process.env.MONGO_URI3 || MONGO_URI;
+
 const client = new MongoClient(MONGO_URI);
+const client2 = new MongoClient(MONGO_URI2);
+const client3 = new MongoClient(MONGO_URI3);
 const dbName = 'earngram_prod';
 
 // State for collections
@@ -47,16 +52,19 @@ let adTasksCol: any = null;
 let settingsCol: any = null;
 
 // Background DB Connection
-client.connect().then(() => {
-  console.log('Connected to MongoDB');
-  const db = client.db(dbName);
-  usersCol = db.collection<any>('users');
-  transactionsCol = db.collection<any>('transactions');
-  tasksCol = db.collection<any>('tasks');
-  adTasksCol = db.collection<any>('ad_tasks');
-  settingsCol = db.collection<any>('settings');
+Promise.all([
+  client.connect(),
+  client2.connect(),
+  client3.connect()
+]).then(() => {
+  console.log('Connected to all MongoDB instances');
+  usersCol = client.db(dbName).collection<any>('users');
+  tasksCol = client2.db(dbName).collection<any>('tasks');
+  adTasksCol = client2.db(dbName).collection<any>('ad_tasks');
+  transactionsCol = client3.db(dbName).collection<any>('transactions');
+  settingsCol = client3.db(dbName).collection<any>('settings');
 }).catch(err => {
-  console.error('Failed to connect to MongoDB (will use mock data):', err);
+  console.error('Failed to connect to one or more MongoDB instances:', err);
 });
 
 // API Proxy to Python Backend (bot.py on port 8888)

@@ -1,8 +1,24 @@
 
-import React, { useState, useEffect } from 'react';
-import { TaskSubmission, WithdrawalRequest, Task, User, AdTask, MaintenanceSettings, AdminPaymentDetails } from '../types';
+import React, { useState } from 'react';
+import { TaskSubmission, WithdrawalRequest, Task, User, AdTask, MaintenanceSettings } from '../types';
 import { TelegramService } from '../services/telegram';
 import { isUserAdmin } from '../state';
+import { motion, AnimatePresence } from 'motion/react';
+import { 
+  Settings, CheckCircle, List, Users, Wallet, 
+  Send, CreditCard, ScrollText, Shield,
+  Zap
+} from 'lucide-react';
+
+import { AdminApprovals } from './AdminApprovals';
+import { AdminBalances } from './AdminBalances';
+import { AdminBroadcast } from './AdminBroadcast';
+import { AdminDeposits } from './AdminDeposits';
+import { AdminWithdrawals } from './AdminWithdrawals';
+import { AdminLogs } from './AdminLogs';
+import { AdminSystem } from './AdminSystem';
+import { AdminTasks } from './AdminTasks';
+import { AdminUsers } from './AdminUsers';
 
 interface AdminProps {
   submissions: TaskSubmission[];
@@ -13,1363 +29,174 @@ interface AdminProps {
   currentUser: User;
   maintenanceSettings: MaintenanceSettings;
   onUpdateMaintenance: (settings: MaintenanceSettings) => void;
-  onAction: (id: string, type: 'submission' | 'withdrawal', status: any) => void;
+  onAction: (id: string, type: 'submission' | 'withdrawal', status: any) => Promise<void>;
   onAddTask: (task: Task) => void;
   onAddAdTask: (task: AdTask) => void;
   onDeleteTask: (taskId: string) => void;
   onDeleteAdTask: (taskId: string) => void;
   onUnban: (userId: number) => void;
-  onUpdateBalance: (userId: number, amount: number, currency: 'SAR' | 'USDT') => void;
+  onUpdateBalance: (userId: number, amount: number, currency: 'SAR' | 'USDT', type: 'ADJUSTMENT', description: string) => Promise<void>;
   onResetLeaderboard: () => void;
-  onApproveTask: (taskId: string, isVideo: boolean) => void;
-  onRejectTask: (taskId: string, isVideo: boolean) => void;
-  onResetDevice: (userId: number) => void;
+  onApproveTask: (taskId: string, isVideo: boolean) => Promise<void>;
+  onRejectTask: (taskId: string, isVideo: boolean) => Promise<void>;
+  onResetDevice: (userId: number) => Promise<void>;
 }
 
-const Admin: React.FC<AdminProps> = ({ withdrawals, tasks, adTasks, users, currentUser, maintenanceSettings, onUpdateMaintenance, onAction, onAddTask, onAddAdTask, onDeleteTask, onDeleteAdTask, onUnban, onUpdateBalance, onResetLeaderboard, onApproveTask, onRejectTask, onResetDevice }) => {
-  const [activeAdminTab, setActiveAdminTab] = useState<'system' | 'payouts' | 'messaging' | 'balances' | 'tasks' | 'approvals' | 'users' | 'deposits'>('system');
-  const [activeSysTab, setActiveSysTab] = useState<'maintenance' | 'ad_config' | 'app_info' | 'payment'>('maintenance');
-  const [payoutStats, setPayoutStats] = useState<any>(null);
-  const [payoutSearch, setPayoutSearch] = useState('');
-  const [payoutSearchResults, setPayoutSearchResults] = useState<WithdrawalRequest[]>([]);
-  const [isSearchingPayouts, setIsSearchingPayouts] = useState(false);
-  const [balanceSearch, setBalanceSearch] = useState('');
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [searchedUser, setSearchedUser] = useState<any>(null);
-  const [isSearching, setIsSearching] = useState(false);
-  const [deposits, setDeposits] = useState<any[]>([]);
-  const [isFetchingDeposits, setIsFetchingDeposits] = useState(false);
-  const [adjustment, setAdjustment] = useState({ amount: '', currency: 'SAR' as const });
-  const [paymentForm, setPaymentForm] = useState<AdminPaymentDetails>(maintenanceSettings.paymentDetails);
-  const [boostForm, setBoostForm] = useState({
-    link: maintenanceSettings.boostAdLink,
-    reward: maintenanceSettings.boostRewardRiyal.toString(),
-    duration: (maintenanceSettings.boostDuration || 15).toString()
-  });
-  const [broadcastMsg, setBroadcastMsg] = useState('');
-  const [isUpdatingSettings, setIsUpdatingSettings] = useState(false);
-  const [isResettingLeaderboard, setIsResettingLeaderboard] = useState(false);
-  const [adScripts, setAdScripts] = useState({
-    header: maintenanceSettings.headerAdScript || '',
-    footer: maintenanceSettings.footerAdScript || ''
-  });
-  const [systemLinks, setSystemLinks] = useState({
-    support: maintenanceSettings.supportLink || '',
-    tos: maintenanceSettings.tosContent || '',
-    report: maintenanceSettings.reportLink || '',
-    instructions: maintenanceSettings.depositInstructions || ''
-  });
-  const [channelInputs, setChannelInputs] = useState<string[]>(
-    maintenanceSettings.verificationChannels?.length ? [...maintenanceSettings.verificationChannels] : ['', '', '', '', '']
-  );
-
-  // Ensure we always have 5 inputs
-  useEffect(() => {
-    if (channelInputs.length < 5) {
-      const newInputs = [...channelInputs];
-      while (newInputs.length < 5) newInputs.push('');
-      setChannelInputs(newInputs);
-    }
-  }, [channelInputs]);
-
-  // Task Forms
-  const [videoTaskForm, setVideoTaskForm] = useState({
-    title: '',
-    url: '',
-    duration: '15',
-    reward: '1.00',
-    platform: 'YouTube'
-  });
-
-  const [adTaskForm, setAdTaskForm] = useState({
-    title: '',
-    url: '',
-    duration: '10',
-    reward: '0.50',
-    network: 'Monetag'
-  });
+const Admin: React.FC<AdminProps> = ({ 
+  withdrawals, tasks, adTasks, users, currentUser, 
+  maintenanceSettings, onUpdateMaintenance, onAction, 
+  onAddTask, onAddAdTask, onDeleteTask, onDeleteAdTask, 
+  onUnban, onUpdateBalance, onResetLeaderboard, 
+  onApproveTask, onRejectTask, onResetDevice 
+}) => {
+  const [activeAdminTab, setActiveAdminTab] = useState<'system' | 'payouts' | 'messaging' | 'balances' | 'tasks' | 'approvals' | 'users' | 'deposits' | 'logs'>('system');
 
   const isPreviewMode = !currentUser.id || currentUser.id === 12345678 || currentUser.id === 0;
   const isAdmin = isUserAdmin(currentUser.id);
+  const isSuperAdmin = currentUser.id === 929198867 || isPreviewMode;
 
   if (!isAdmin && !isPreviewMode) {
     return (
       <div className="p-8 flex flex-col items-center justify-center text-center space-y-4 h-[70vh]">
-        <div className="text-6xl">🔒</div>
+        <Shield className="w-16 h-16 text-red-500 opacity-20" />
         <h2 className="text-2xl font-black uppercase text-red-500">Access Denied</h2>
         <p className="text-slate-400 text-sm">You do not have administrative privileges to access this control panel.</p>
       </div>
     );
   }
 
-  const foundUser = users.find(u => u.id.toString() === balanceSearch);
-
-  const toggleService = (key: keyof MaintenanceSettings) => {
-    const updated = { ...maintenanceSettings, [key]: !maintenanceSettings[key] as any };
-    onUpdateMaintenance(updated);
-  };
-
-  useEffect(() => {
-    if (activeAdminTab === 'deposits') {
-      fetchDeposits();
-    }
-    if (activeAdminTab === 'payouts') {
-      fetchPayoutStats();
-    }
-  }, [activeAdminTab]);
-
-  const fetchPayoutStats = async () => {
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/admin/payout_stats?admin_id=${currentUser.id}`);
-      if (res.ok) {
-        const data = await res.json();
-        setPayoutStats(data);
-      }
-    } catch (err) {
-      console.error('Failed to fetch payout stats:', err);
-    }
-  };
-
-  const handleSearchPayouts = async () => {
-    if (!payoutSearch) return;
-    setIsSearchingPayouts(true);
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/user/withdrawals/${payoutSearch}`);
-      if (res.ok) {
-        const data = await res.json();
-        const mapped = data.map((w: any) => ({
-          id: w._id,
-          userId: w.userId,
-          amount: w.amount,
-          currency: w.currency === 'SAR' ? 'Riyal' : 'Crypto',
-          method: w.method,
-          address: w.address,
-          status: w.status,
-          createdAt: w.createdAt,
-          processedAt: w.processedAt
-        }));
-        setPayoutSearchResults(mapped);
-      } else {
-        setPayoutSearchResults([]);
-      }
-    } catch (err) {
-      console.error('Payout search error:', err);
-    } finally {
-      setIsSearchingPayouts(false);
-    }
-  };
-
-  const fetchDeposits = async () => {
-    setIsFetchingDeposits(true);
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/admin/deposits?admin_id=${currentUser.id}`);
-      const data = await res.json();
-      if (Array.isArray(data)) {
-        setDeposits(data);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsFetchingDeposits(false);
-    }
-  };
-
-  const handleApproveDeposit = async (id: string) => {
-    if (!window.confirm('Approve this deposit and credit user?')) return;
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/admin/approve_deposit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_id: currentUser.id, deposit_id: id })
-      });
-      if (res.ok) {
-        TelegramService.showAlert('Deposit Approved!');
-        fetchDeposits();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleRejectDeposit = async (id: string) => {
-    if (!window.confirm('Reject this deposit?')) return;
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/admin/reject_deposit`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_id: currentUser.id, deposit_id: id })
-      });
-      if (res.ok) {
-        TelegramService.showAlert('Deposit Rejected');
-        fetchDeposits();
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const handleUpdatePaymentDetails = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsUpdatingSettings(true);
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/update_settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          admin_id: currentUser.id,
-          paymentDetails: paymentForm
-        })
-      });
-      
-      if (res.ok) {
-        onUpdateMaintenance({ ...maintenanceSettings, paymentDetails: paymentForm });
-        TelegramService.showAlert('System settings updated successfully!');
-      } else {
-        TelegramService.showAlert('Failed to update settings');
-      }
-    } catch (err) {
-      console.error(err);
-      TelegramService.showAlert('Error updating settings');
-    } finally {
-      setIsUpdatingSettings(false);
-    }
-  };
-
-  const handleResetLeaderboardClick = async () => {
-    if (!window.confirm('Are you sure you want to start a new season? This will reset ranks.')) return;
-    
-    setIsResettingLeaderboard(true);
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/reset_leaderboard`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ admin_id: currentUser.id })
-      });
-      
-      if (res.ok) {
-        onResetLeaderboard();
-        TelegramService.showAlert('Leaderboard reset successfully!');
-      } else {
-        TelegramService.showAlert('Failed to reset leaderboard');
-      }
-    } catch (err) {
-      console.error(err);
-      TelegramService.showAlert('Error resetting leaderboard');
-    } finally {
-      setIsResettingLeaderboard(false);
-    }
-  };
-
-  const handleUpdateChannels = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsUpdatingSettings(true);
-    
-    // Filter out empty channels and ensure they start with @
-    const cleanedChannels = channelInputs
-      .map(c => c.trim())
-      .filter(c => c !== '')
-      .map(c => c.startsWith('@') ? c : `@${c}`);
-
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/maintenance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...maintenanceSettings,
-          verificationChannels: cleanedChannels
-        })
-      });
-
-      if (res.ok) {
-        onUpdateMaintenance({
-          ...maintenanceSettings,
-          verificationChannels: cleanedChannels
-        });
-        TelegramService.showAlert('Mandatory channels updated successfully!');
-      } else {
-        TelegramService.showAlert('Failed to update channels');
-      }
-    } catch (err) {
-      console.error(err);
-      TelegramService.showAlert('Error updating channels');
-    } finally {
-      setIsUpdatingSettings(false);
-    }
-  };
-
-  const handleUpdateBoostSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    onUpdateMaintenance({ 
-      ...maintenanceSettings, 
-      boostAdLink: boostForm.link, 
-      boostRewardRiyal: parseFloat(boostForm.reward) || 0.05,
-      boostDuration: parseInt(boostForm.duration) || 15
-    });
-    TelegramService.showAlert('Boost settings updated successfully!');
-  };
-
-  const handleUpdateAdScripts = (e: React.FormEvent) => {
-    e.preventDefault();
-    onUpdateMaintenance({ 
-      ...maintenanceSettings, 
-      headerAdScript: adScripts.header,
-      footerAdScript: adScripts.footer
-    });
-    TelegramService.showAlert('Banner ad scripts updated!');
-  };
-
-  const handleUpdateSystemLinks = (e: React.FormEvent) => {
-    e.preventDefault();
-    onUpdateMaintenance({ 
-      ...maintenanceSettings, 
-      supportLink: systemLinks.support,
-      tosContent: systemLinks.tos,
-      reportLink: systemLinks.report,
-      depositInstructions: systemLinks.instructions
-    });
-    TelegramService.showAlert('System settings updated!');
-  };
-
-  const handleUpdateDepositSettings = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsUpdatingSettings(true);
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/update_settings`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          admin_id: currentUser.id,
-          paymentDetails: paymentForm
-        })
-      });
-      
-      if (res.ok) {
-        onUpdateMaintenance({ 
-          ...maintenanceSettings, 
-          paymentDetails: paymentForm,
-          depositInstructions: systemLinks.instructions
-        });
-        TelegramService.showAlert('Deposit settings updated successfully!');
-      } else {
-        TelegramService.showAlert('Failed to update settings');
-      }
-    } catch (err) {
-      console.error(err);
-      TelegramService.showAlert('Error updating settings');
-    } finally {
-      setIsUpdatingSettings(false);
-    }
-  };
-
-  const handleSearchUser = async (userId?: string) => {
-    const idToSearch = userId || balanceSearch;
-    if (!idToSearch) return;
-    setIsSearching(true);
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      console.log(`[DEBUG] Searching for user ${idToSearch} at ${apiUrl}/api/admin/search_user`);
-      
-      const res = await fetch(`${apiUrl}/api/admin/search_user?user_id=${idToSearch}&admin_id=${currentUser.id}`);
-      
-      const data = await res.json();
-      
-      if (res.ok && data.status === 'success') {
-        const userIdNum = parseInt(idToSearch);
-        setSelectedUserId(userIdNum);
-        setSearchedUser({
-          id: userIdNum,
-          username: data.username,
-          balance_sar: data.balance_sar,
-          balance_usdt: data.balance_usdt,
-          balanceRiyal: data.balance_sar,
-          balanceCrypto: data.balance_usdt,
-          deviceId: data.device_id,
-          lastIp: data.last_ip
-        });
-      } else {
-        console.warn(`[WARN] Search failed: ${data.message || 'User not found'}`);
-        TelegramService.showAlert(data.message || 'User not found');
-        setSearchedUser(null);
-        setSelectedUserId(null);
-      }
-    } catch (err) {
-      console.error('[ERROR] handleSearchUser Exception:', err);
-      TelegramService.showAlert('Error searching user. Check console for details.');
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const handleAdjustBalance = async () => {
-    if (!searchedUser || !adjustment.amount) return;
-    
-    setIsUpdatingSettings(true);
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/admin/update_balance`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          admin_id: currentUser.id,
-          user_id: searchedUser.id,
-          amount: parseFloat(adjustment.amount),
-          currency: adjustment.currency
-        })
-      });
-      
-      if (res.ok) {
-        TelegramService.showAlert('Balance Updated Successfully!');
-        onUpdateBalance(searchedUser.id, parseFloat(adjustment.amount), adjustment.currency);
-        setAdjustment({ ...adjustment, amount: '' });
-        handleSearchUser();
-      } else {
-        TelegramService.showAlert('Failed to update balance');
-      }
-    } catch (err) {
-      console.error(err);
-      TelegramService.showAlert('Error updating balance');
-    } finally {
-      setIsUpdatingSettings(false);
-    }
-  };
-
-  const handleAdminResetDevice = async () => {
-    if (!searchedUser) return;
-    
-    setIsUpdatingSettings(true);
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/admin/reset_device`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          admin_id: currentUser.id,
-          user_id: searchedUser.id
-        })
-      });
-      
-      if (res.ok) {
-        TelegramService.showAlert('Device ID reset successfully!');
-        handleSearchUser(); // Refresh user data
-      } else {
-        TelegramService.showAlert('Failed to reset device');
-      }
-    } catch (err) {
-      console.error(err);
-      TelegramService.showAlert('Error resetting device');
-    } finally {
-      setIsUpdatingSettings(false);
-    }
-  };
-
-  const handleAddVideoTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!videoTaskForm.title || !videoTaskForm.url) return;
-    const newTask: Task = {
-      id: 'v-' + Date.now(),
-      title: videoTaskForm.title,
-      url: videoTaskForm.url,
-      timerSeconds: parseInt(videoTaskForm.duration),
-      rewardRiyal: parseFloat(videoTaskForm.reward),
-      rewardCrypto: parseFloat(videoTaskForm.reward) / 10,
-      platform: videoTaskForm.platform as any,
-      status: 'active',
-      ownerId: currentUser.id,
-      budget: 1000 // Default budget for admin tasks
-    };
-    onAddTask(newTask);
-    setVideoTaskForm({ title: '', url: '', duration: '15', reward: '1.00', platform: 'YouTube' });
-    TelegramService.showAlert('Video task added!');
-    setTimeout(() => window.location.reload(), 1000);
-  };
-
-  const handleAddAdTask = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!adTaskForm.title || !adTaskForm.url) return;
-    const newAd: AdTask = {
-      id: 'ad-' + Date.now(),
-      title: adTaskForm.title,
-      url: adTaskForm.url,
-      durationSeconds: parseInt(adTaskForm.duration),
-      rewardRiyal: parseFloat(adTaskForm.reward),
-      rewardCrypto: parseFloat(adTaskForm.reward) / 10,
-      networkName: adTaskForm.network,
-      status: 'active',
-      ownerId: currentUser.id,
-      budget: 1000 // Default budget for admin tasks
-    };
-    onAddAdTask(newAd);
-    setAdTaskForm({ title: '', url: '', duration: '10', reward: '0.50', network: 'Monetag' });
-    TelegramService.showAlert('Ad task added!');
-    setTimeout(() => window.location.reload(), 1000);
-  };
-  
-  const handleBroadcast = async () => {
-    if (!broadcastMsg.trim()) return;
-    
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/broadcast`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          admin_id: currentUser.id,
-          message: broadcastMsg
-        })
-      });
-      
-      const data = await res.json();
-      if (res.ok) {
-        TelegramService.showAlert(`Broadcast Started: Sending message to ${data.total} users...`);
-        setBroadcastMsg('');
-      } else {
-        TelegramService.showAlert(data.message || 'Broadcast failed');
-      }
-    } catch (e) {
-      console.error('Broadcast error:', e);
-      TelegramService.showAlert('Server error during broadcast');
-    }
-  };
-
-  const isSuperAdmin = currentUser.id === 929198867 || isPreviewMode;
+  const adminTabs = [
+    { id: 'system', label: 'System', icon: Settings },
+    { id: 'approvals', label: 'Approvals', icon: CheckCircle },
+    { id: 'tasks', label: 'Tasks', icon: List },
+    { id: 'users', label: 'Users', icon: Users },
+    { id: 'balances', label: 'Balances', icon: Wallet, super: true },
+    { id: 'payouts', label: 'Payouts', icon: CreditCard },
+    { id: 'messaging', label: 'Broadcast', icon: Send },
+    { id: 'deposits', label: 'Deposits', icon: Zap, super: true },
+    { id: 'logs', label: 'Logs', icon: ScrollText, super: true }
+  ].filter(tab => !tab.super || isSuperAdmin);
 
   return (
-    <div className="p-4 space-y-6 pb-32">
-      <header className="flex flex-col items-center space-y-4 mb-2">
-        <h2 className="text-2xl font-black uppercase tracking-tight text-white">Admin Panel</h2>
-        <div className="flex flex-wrap justify-center gap-2 w-full">
-          {[
-            { id: 'system', label: 'System' },
-            { id: 'approvals', label: 'Approvals' },
-            { id: 'tasks', label: 'Tasks' },
-            { id: 'users', label: 'Users' },
-            { id: 'balances', label: 'Balances', super: true },
-            { id: 'payouts', label: 'Payouts' },
-            { id: 'messaging', label: 'Broadcast' },
-            { id: 'deposits', label: 'Deposits', super: true }
-          ]
-          .filter(tab => !tab.super || isSuperAdmin)
-          .map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveAdminTab(tab.id as any)}
-              className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all duration-200 border ${
-                activeAdminTab === tab.id
-                  ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-900/40'
-                  : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-700 hover:text-slate-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
+    <div className="space-y-6 pb-20">
+      <header className="text-center space-y-2 py-4">
+        <motion.h2 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="text-2xl font-black glow-text tracking-tight"
+        >
+          CONTROL CENTER
+        </motion.h2>
+        <motion.p 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.1 }}
+          className="text-[10px] text-slate-500 font-black uppercase tracking-[0.3em]"
+        >
+          System Administration • v2.0
+        </motion.p>
       </header>
 
-      {activeAdminTab === 'approvals' && (
-        <div className="space-y-6 animate-in slide-in-from-right duration-300">
-          <section className="space-y-3">
-            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Review Pending Ads</h3>
-            <div className="space-y-3">
-              {[...tasks, ...adTasks].filter(t => t.status === 'pending_approval').length === 0 ? (
-                <div className="text-center py-10 text-slate-500 text-sm italic">No pending ads to review.</div>
-              ) : (
-                [...tasks, ...adTasks].filter(t => t.status === 'pending_approval').map(task => {
-                  const isVideo = 'platform' in task;
-                  const creator = users.find(u => u.id === task.ownerId);
-                  return (
-                    <div key={task.id} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h4 className="font-bold text-sm">{task.title}</h4>
-                          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                            {isVideo ? `Video (${(task as Task).platform})` : `Ad Link (${(task as AdTask).networkName})`}
-                          </p>
-                          <p className="text-[10px] text-blue-400 font-medium">Creator: @{creator?.username || 'Unknown'}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-green-400 font-bold text-sm">{task.rewardRiyal} SAR/View</p>
-                          <p className="text-[10px] text-slate-500">Target: {task.budget} Views</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => onApproveTask(task.id, isVideo)}
-                          className="flex-1 bg-green-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-green-900/20"
-                        >
-                          Approve
-                        </button>
-                        <button 
-                          onClick={() => onRejectTask(task.id, isVideo)}
-                          className="flex-1 bg-red-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-900/20"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </section>
-        </div>
-      )}
+      {/* Main Navigation Grid */}
+      <div className="grid grid-cols-3 gap-2 px-1">
+        {adminTabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => {
+              TelegramService.haptic('light');
+              setActiveAdminTab(tab.id as any);
+            }}
+            className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl transition-all duration-300 border ${
+              activeAdminTab === tab.id
+                ? 'bg-neon-blue border-neon-blue text-midnight shadow-lg shadow-neon-blue/20 scale-[1.02]'
+                : 'glass-card border-white/5 text-slate-500 hover:text-slate-300 hover:border-white/10'
+            }`}
+          >
+            <tab.icon className={`w-4 h-4 ${activeAdminTab === tab.id ? 'text-midnight' : 'text-slate-500'}`} />
+            <span className="text-[8px] font-black uppercase tracking-widest">{tab.label}</span>
+          </button>
+        ))}
+      </div>
 
-      {activeAdminTab === 'tasks' && (
-        <div className="space-y-8 animate-in slide-in-from-right duration-300">
-          {/* Video Task Form */}
-          <section className="space-y-3">
-            <h3 className="font-bold text-blue-400 flex items-center gap-2">📹 Add Video Task</h3>
-            <form onSubmit={handleAddVideoTask} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-              <input type="text" placeholder="Task Title" value={videoTaskForm.title} onChange={e => setVideoTaskForm({...videoTaskForm, title: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-              <input type="text" placeholder="Video URL" value={videoTaskForm.url} onChange={e => setVideoTaskForm({...videoTaskForm, url: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Timer (Sec)</label>
-                  <input type="number" value={videoTaskForm.duration} onChange={e => setVideoTaskForm({...videoTaskForm, duration: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Reward (SAR)</label>
-                  <input type="number" step="0.01" value={videoTaskForm.reward} onChange={e => setVideoTaskForm({...videoTaskForm, reward: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-                </div>
-              </div>
-              <select value={videoTaskForm.platform} onChange={e => setVideoTaskForm({...videoTaskForm, platform: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none">
-                <option value="YouTube">YouTube</option>
-                <option value="TikTok">TikTok</option>
-                <option value="Dailymotion">Dailymotion</option>
-                <option value="Vimeo">Vimeo</option>
-                <option value="Facebook">Facebook Video</option>
-                <option value="Custom">Custom MP4 Link</option>
-              </select>
-              <button className="w-full bg-blue-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest">Add Video Task</button>
-            </form>
-          </section>
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={activeAdminTab}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="px-1"
+        >
+          {activeAdminTab === 'system' && (
+            <AdminSystem 
+              maintenanceSettings={maintenanceSettings}
+              onUpdateMaintenance={onUpdateMaintenance}
+              currentUser={currentUser}
+            />
+          )}
 
-          {/* Ad Task Form */}
-          <section className="space-y-3">
-            <h3 className="font-bold text-amber-500 flex items-center gap-2">🔗 Add Ad Task (Universal Link)</h3>
-            <form onSubmit={handleAddAdTask} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-              <input type="text" placeholder="Ad Title" value={adTaskForm.title} onChange={e => setAdTaskForm({...adTaskForm, title: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-              <input type="text" placeholder="Direct/Smart Link URL" value={adTaskForm.url} onChange={e => setAdTaskForm({...adTaskForm, url: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Duration (Sec)</label>
-                  <input type="number" value={adTaskForm.duration} onChange={e => setAdTaskForm({...adTaskForm, duration: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Reward (SAR)</label>
-                  <input type="number" step="0.01" value={adTaskForm.reward} onChange={e => setAdTaskForm({...adTaskForm, reward: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Ad Network / Category</label>
-                <select 
-                  value={adTaskForm.network} 
-                  onChange={e => setAdTaskForm({...adTaskForm, network: e.target.value})} 
-                  className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none"
-                >
-                  <option value="Adsterra">Adsterra</option>
-                  <option value="Monetag">Monetag</option>
-                  <option value="AdOperator">AdOperator</option>
-                  <option value="AdMaven">AdMaven</option>
-                  <option value="HilltopAds">HilltopAds</option>
-                  <option value="PropellerAds">PropellerAds</option>
-                  <option value="Custom">Custom</option>
-                </select>
-              </div>
-              <button className="w-full bg-amber-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest">Add Ad Task</button>
-            </form>
-          </section>
+          {activeAdminTab === 'tasks' && (
+            <AdminTasks 
+              tasks={tasks}
+              adTasks={adTasks}
+              currentUser={currentUser}
+              onAddTask={onAddTask}
+              onAddAdTask={onAddAdTask}
+              onDeleteTask={onDeleteTask}
+              onDeleteAdTask={onDeleteAdTask}
+            />
+          )}
 
-          {/* Active Tasks List */}
-          <section className="space-y-4">
-            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Active Tasks</h3>
-            
-            <div className="space-y-3">
-              <p className="text-[10px] font-bold text-blue-400 uppercase px-1">Videos ({tasks.length})</p>
-              {tasks.length === 0 ? (
-                <p className="text-center py-4 text-[10px] text-slate-600 italic">No video tasks active.</p>
-              ) : (
-                tasks.map(t => (
-                  <div key={t.id} className="bg-slate-800 p-3 rounded-2xl border border-slate-700 flex items-center justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold truncate">{t.title}</p>
-                      <p className="text-[9px] text-slate-500 truncate">{t.url}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="text-[10px] font-black text-blue-400">{t.rewardRiyal} SAR</p>
-                        <p className="text-[8px] text-slate-500">{t.timerSeconds}s</p>
-                      </div>
-                      <button onClick={() => onDeleteTask(t.id)} className="p-2 bg-red-900/20 text-red-500 rounded-lg hover:bg-red-900/40 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+          {activeAdminTab === 'approvals' && (
+            <AdminApprovals 
+              tasks={tasks} 
+              adTasks={adTasks} 
+              users={users} 
+              onApprove={onApproveTask} 
+              onReject={onRejectTask} 
+            />
+          )}
 
-            <div className="space-y-3">
-              <p className="text-[10px] font-bold text-amber-500 uppercase px-1">Ads ({adTasks.length})</p>
-              {adTasks.length === 0 ? (
-                <p className="text-center py-4 text-[10px] text-slate-600 italic">No ad tasks active.</p>
-              ) : (
-                adTasks.map(a => (
-                  <div key={a.id} className="bg-slate-800 p-3 rounded-2xl border border-slate-700 flex items-center justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-bold truncate">{a.title}</p>
-                      <p className="text-[9px] text-slate-500 truncate">{a.url}</p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="text-right">
-                        <p className="text-[10px] font-black text-amber-500">{a.rewardRiyal} SAR</p>
-                        <p className="text-[8px] text-slate-500">{a.durationSeconds}s</p>
-                      </div>
-                      <button onClick={() => onDeleteAdTask(a.id)} className="p-2 bg-red-900/20 text-red-500 rounded-lg hover:bg-red-900/40 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-        </div>
-      )}
+          {activeAdminTab === 'payouts' && (
+            <AdminWithdrawals 
+              withdrawals={withdrawals} 
+              onAction={onAction} 
+            />
+          )}
 
-      {activeAdminTab === 'deposits' && (
-        <div className="space-y-6 animate-in slide-in-from-right duration-300">
-          <section className="space-y-3">
-            <div className="flex justify-between items-center px-1">
-              <h3 className="text-[10px] text-slate-500 uppercase font-black tracking-widest">Payment Logs</h3>
-              <button onClick={fetchDeposits} className="text-[10px] text-blue-400 font-bold uppercase">Refresh</button>
-            </div>
-            <div className="space-y-3">
-              {isFetchingDeposits ? (
-                <div className="text-center py-10 text-slate-500 text-sm italic">Loading deposits...</div>
-              ) : deposits.length === 0 ? (
-                <div className="text-center py-10 text-slate-500 text-sm italic">No deposit attempts found.</div>
-              ) : (
-                deposits.map(d => (
-                  <div key={d._id} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="text-xs font-bold">User ID: {d.userId}</p>
-                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{d.method} • {d.currency}</p>
-                        <p className="text-[10px] text-blue-400 font-mono mt-1">TxID: {d.txId}</p>
-                        {d.senderNumber && <p className="text-[10px] text-amber-400 font-bold mt-1">Sender: {d.senderNumber}</p>}
-                      </div>
-                      <div className="text-right">
-                        <p className="text-green-400 font-bold text-sm">{d.amount} {d.currency}</p>
-                        <p className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full mt-1 inline-block ${
-                          d.status === 'PENDING' ? 'bg-amber-500/20 text-amber-500' :
-                          d.status === 'APPROVED' ? 'bg-green-500/20 text-green-500' :
-                          'bg-red-500/20 text-red-500'
-                        }`}>
-                          {d.status}
-                        </p>
-                      </div>
-                    </div>
-                    {d.status === 'PENDING' && (
-                      <div className="flex gap-2 pt-2">
-                        <button 
-                          onClick={() => handleApproveDeposit(d._id)}
-                          className="flex-1 bg-green-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-green-900/20"
-                        >
-                          Approve
-                        </button>
-                        <button 
-                          onClick={() => handleRejectDeposit(d._id)}
-                          className="flex-1 bg-red-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-900/20"
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
-        </div>
-      )}
-      {activeAdminTab === 'balances' && isSuperAdmin && (
-        <div className="space-y-6 animate-in zoom-in duration-300">
-          <section className="space-y-3">
-            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">User Balance Manager</h3>
-            <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-4">
-              <div className="flex gap-2">
-                <input 
-                  type="number" 
-                  placeholder="Enter User ID" 
-                  value={balanceSearch} 
-                  onChange={e => setBalanceSearch(e.target.value)} 
-                  className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-sm outline-none focus:border-blue-500/50 transition-colors" 
-                />
-                <button 
-                  onClick={() => handleSearchUser()}
-                  disabled={isSearching}
-                  className="bg-blue-600 px-6 py-2 rounded-xl text-xs font-bold uppercase disabled:opacity-50 transition-all active:scale-95"
-                >
-                  {isSearching ? '...' : 'SEARCH'}
-                </button>
-              </div>
-              
-              {isSearching && (
-                <div className="flex flex-col items-center justify-center py-10 space-y-3">
-                  <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                  <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Fetching User Data...</p>
-                </div>
-              )}
+          {activeAdminTab === 'balances' && isSuperAdmin && (
+            <AdminBalances 
+              onUpdateBalance={onUpdateBalance} 
+              onResetDevice={onResetDevice} 
+            />
+          )}
 
-              {searchedUser && !isSearching && (
-                <div className="p-5 bg-slate-900/80 rounded-2xl border border-blue-500/30 space-y-6 animate-in fade-in slide-in-from-top-2 duration-300">
-                  {/* Result Card Header: Identity & Balance */}
-                  <div className="flex justify-between items-start border-b border-slate-700/50 pb-4">
-                    <div>
-                      <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest mb-1">User Identity</p>
-                      <h4 className="text-lg font-bold text-white">@{searchedUser.username}</h4>
-                      <p className="text-[10px] text-slate-500 font-mono">Member ID: {searchedUser.id}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[9px] text-emerald-400 font-black uppercase tracking-widest mb-1">Live Balance</p>
-                      <p className="text-sm font-bold text-white">{searchedUser.balanceRiyal.toFixed(2)} SAR</p>
-                      <p className="text-xs text-slate-400 font-mono">{searchedUser.balanceCrypto.toFixed(2)} USDT</p>
-                    </div>
-                  </div>
+          {activeAdminTab === 'messaging' && (
+            <AdminBroadcast 
+              onAction={onAction} 
+            />
+          )}
 
-                  {/* Device Info Section */}
-                  <div className="grid grid-cols-2 gap-4 bg-slate-900/50 p-3 rounded-xl border border-slate-700/50">
-                    <div>
-                      <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest mb-1">Device ID</p>
-                      <p className="text-[10px] text-slate-300 font-mono truncate">{searchedUser.deviceId || 'Not Set'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest mb-1">Last IP</p>
-                      <p className="text-[10px] text-slate-300 font-mono">{searchedUser.lastIp || 'Unknown'}</p>
-                    </div>
-                  </div>
+          {activeAdminTab === 'deposits' && isSuperAdmin && (
+            <AdminDeposits 
+              onAction={onAction} 
+            />
+          )}
 
-                  {/* Balance Editor Section */}
-                  <div className="space-y-3">
-                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest px-1">Balance Editor</p>
-                    <div className="flex gap-2">
-                      <input 
-                        type="number" 
-                        step="any" 
-                        placeholder="Amount (+ or -)" 
-                        value={adjustment.amount} 
-                        onChange={e => setAdjustment({...adjustment, amount: e.target.value})} 
-                        className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none focus:border-blue-500/50" 
-                      />
-                      <select 
-                        value={adjustment.currency} 
-                        onChange={e => setAdjustment({...adjustment, currency: e.target.value as any})} 
-                        className="bg-slate-900 border border-slate-700 rounded-xl px-3 text-[10px] font-bold outline-none"
-                      >
-                        <option value="SAR">SAR</option>
-                        <option value="USDT">USDT</option>
-                      </select>
-                      <button 
-                        onClick={handleAdjustBalance} 
-                        disabled={isUpdatingSettings || !adjustment.amount}
-                        className="bg-blue-600 hover:bg-blue-500 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50"
-                      >
-                        APPLY
-                      </button>
-                    </div>
-                  </div>
+          {activeAdminTab === 'users' && (
+            <AdminUsers 
+              users={users}
+              onUnban={onUnban}
+              onResetDevice={onResetDevice}
+              onUpdateBalance={onUpdateBalance}
+            />
+          )}
 
-                  {/* Reset Button Section */}
-                  <div className="pt-2">
-                    <button 
-                      onClick={handleAdminResetDevice}
-                      disabled={isUpdatingSettings}
-                      className="w-full bg-red-600/10 hover:bg-red-600/20 text-red-500 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest border border-red-500/20 transition-all active:scale-[0.98] disabled:opacity-50"
-                    >
-                      RESET DEVICE ID
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h3 className="font-bold text-emerald-500">Season Management</h3>
-            <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700">
-               <button 
-                onClick={handleResetLeaderboardClick}
-                disabled={isResettingLeaderboard}
-                className={`w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-xl font-bold text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 ${isResettingLeaderboard ? 'opacity-50 cursor-not-allowed' : ''}`}
-               >
-                 {isResettingLeaderboard ? (
-                   <>
-                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                     Resetting...
-                   </>
-                 ) : (
-                   'REFRESH LEADERBOARD'
-                 )}
-               </button>
-               <p className="text-[9px] text-slate-500 mt-2 text-center uppercase font-black">Clears all total earnings but keeps user balances.</p>
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h3 className="font-bold text-amber-500">Payment Details Editor</h3>
-            <form onSubmit={handleUpdatePaymentDetails} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-              <input type="text" placeholder="Crypto Address" value={paymentForm.cryptoAddress} onChange={e => setPaymentForm({...paymentForm, cryptoAddress: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-              <textarea placeholder="Bank Info" value={paymentForm.bankInfo} onChange={e => setPaymentForm({...paymentForm, bankInfo: e.target.value})} className="w-full h-20 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none resize-none" />
-              <input type="text" placeholder="Support Username (no @)" value={paymentForm.supportUsername} onChange={e => setPaymentForm({...paymentForm, supportUsername: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-              <button 
-                disabled={isUpdatingSettings}
-                className={`w-full bg-amber-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 ${isUpdatingSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
-              >
-                {isUpdatingSettings ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Updating...
-                  </>
-                ) : (
-                  'Update Payment Details'
-                )}
-              </button>
-            </form>
-          </section>
-        </div>
-      )}
-
-      {activeAdminTab === 'system' && (
-        <div className="space-y-6">
-          {/* SYS Sub-Tabs */}
-          <div className="flex flex-wrap gap-2 p-1.5 bg-slate-900/80 rounded-2xl border border-slate-700/50 shadow-inner">
-            {[
-              { id: 'maintenance', label: 'Maintenance' },
-              { id: 'ad_config', label: 'Ad Config' },
-              { id: 'app_info', label: 'App Info' },
-              { id: 'payment', label: 'Payment' }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveSysTab(tab.id as any)}
-                className={`flex-1 px-3 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all duration-200 ${
-                  activeSysTab === tab.id
-                    ? 'bg-blue-600 text-white shadow-[0_0_20px_rgba(37,99,235,0.4)] scale-[1.02] border border-blue-400/30'
-                    : 'bg-slate-800/40 text-slate-500 hover:text-slate-300 hover:bg-slate-800/60 border border-transparent'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-10">
-            {activeSysTab === 'maintenance' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
-                <section className="space-y-3">
-                  <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Global Toggles</h3>
-                  <div className="bg-slate-800 rounded-3xl border border-slate-700 divide-y divide-slate-700">
-                    {['global', 'videoTasks', 'adTasks', 'promote', 'wallet'].map(id => {
-                      const isActive = maintenanceSettings[id as keyof MaintenanceSettings];
-                      return (
-                        <div key={id} className="p-4 flex items-center justify-between">
-                          <span className="text-xs font-bold capitalize">{id}</span>
-                          <div className="flex items-center gap-3">
-                            <span className={`text-[10px] font-black uppercase transition-colors duration-200 ${isActive ? 'text-green-500' : 'text-red-500'}`}>
-                              {isActive ? 'ON' : 'OFF'}
-                            </span>
-                            <button 
-                              onClick={() => toggleService(id as any)} 
-                              className={`h-6 w-10 rounded-full transition-all duration-300 relative ${isActive ? 'bg-blue-600 shadow-[0_0_15px_rgba(37,99,235,0.5)]' : 'bg-slate-900 border border-slate-700'}`}
-                            >
-                              <div className={`h-4 w-4 bg-white rounded-full transition-all duration-300 absolute top-1 ${isActive ? 'translate-x-5' : 'translate-x-1'}`} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              </div>
-            )}
-
-            {activeSysTab === 'ad_config' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
-                <section className="space-y-3">
-                  <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Boost Settings</h3>
-                  <form onSubmit={handleUpdateBoostSettings} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-                    <input type="text" placeholder="Boost Ad Link (Direct)" value={boostForm.link} onChange={e => setBoostForm({...boostForm, link: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Reward (SAR)</label>
-                        <input type="number" step="0.01" placeholder="Reward Amount (SAR)" value={boostForm.reward} onChange={e => setBoostForm({...boostForm, reward: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-                      </div>
-                      <div className="space-y-1">
-                        <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Duration (Sec)</label>
-                        <input type="number" placeholder="Duration (Seconds)" value={boostForm.duration} onChange={e => setBoostForm({...boostForm, duration: e.target.value})} className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" />
-                      </div>
-                    </div>
-                    <button className="w-full bg-blue-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest">Update Boost Config</button>
-                  </form>
-                </section>
-
-                <section className="space-y-3">
-                  <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Universal Script Injector</h3>
-                  <form onSubmit={handleUpdateAdScripts} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Global Header Script (Social Bar/Popunder/Banners)</label>
-                      <textarea 
-                        value={adScripts.header} 
-                        onChange={e => setAdScripts({...adScripts, header: e.target.value})} 
-                        placeholder="Paste Adsterra/Monetag/AdOperator code here..." 
-                        className="w-full h-24 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-[10px] font-mono outline-none resize-none" 
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Global Footer Script (Tracking/Banners)</label>
-                      <textarea 
-                        value={adScripts.footer} 
-                        onChange={e => setAdScripts({...adScripts, footer: e.target.value})} 
-                        placeholder="Paste additional ad scripts here..." 
-                        className="w-full h-24 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-[10px] font-mono outline-none resize-none" 
-                      />
-                    </div>
-                    <button className="w-full bg-emerald-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest">Update Global Scripts</button>
-                  </form>
-                </section>
-              </div>
-            )}
-
-            {activeSysTab === 'app_info' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
-                <section className="space-y-3">
-                  <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Mandatory Channels Manager</h3>
-                  <form onSubmit={handleUpdateChannels} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-                    <p className="text-[9px] text-slate-400 px-1 uppercase font-bold">Enter Telegram usernames (e.g. @channelname)</p>
-                    <div className="space-y-2">
-                      {channelInputs.map((val, idx) => (
-                        <div key={idx} className="flex items-center gap-2">
-                          <span className="text-[10px] text-slate-500 font-bold w-4">{idx + 1}</span>
-                          <input 
-                            type="text" 
-                            placeholder={`@channel${idx + 1}`}
-                            value={val}
-                            onChange={(e) => {
-                              const newInputs = [...channelInputs];
-                              newInputs[idx] = e.target.value;
-                              setChannelInputs(newInputs);
-                            }}
-                            className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none focus:border-blue-500/50 transition-colors"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                    <button 
-                      disabled={isUpdatingSettings}
-                      className={`w-full bg-blue-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${isUpdatingSettings ? 'opacity-50' : ''}`}
-                    >
-                      {isUpdatingSettings ? 'Saving...' : 'Save Channels'}
-                    </button>
-                  </form>
-                </section>
-
-                <section className="space-y-3">
-                  <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">System Links & Rules</h3>
-                  <form onSubmit={handleUpdateSystemLinks} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Support Telegram Link</label>
-                      <input 
-                        type="text" 
-                        placeholder="https://t.me/YourSupport" 
-                        value={systemLinks.support} 
-                        onChange={e => setSystemLinks({...systemLinks, support: e.target.value})} 
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" 
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Report/Feedback Link</label>
-                      <input 
-                        type="text" 
-                        placeholder="https://t.me/YourSupportBot" 
-                        value={systemLinks.report} 
-                        onChange={e => setSystemLinks({...systemLinks, report: e.target.value})} 
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" 
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Terms of Service Content</label>
-                      <textarea 
-                        value={systemLinks.tos} 
-                        onChange={e => setSystemLinks({...systemLinks, tos: e.target.value})} 
-                        placeholder="App rules and policies..." 
-                        className="w-full h-32 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-[10px] outline-none resize-none" 
-                      />
-                    </div>
-                    <button className="w-full bg-blue-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest">Save System Settings</button>
-                  </form>
-                </section>
-              </div>
-            )}
-
-            {activeSysTab === 'payment' && (
-              <div className="space-y-6 animate-in fade-in slide-in-from-top-4 duration-300">
-                <section className="space-y-3">
-                  <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Deposit Settings</h3>
-                  <form onSubmit={handleUpdateDepositSettings} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Gateway API Key (CoinRemitter/NowPayments)</label>
-                      <input 
-                        type="password" 
-                        placeholder="API Key..." 
-                        value={paymentForm.apiKey || ''} 
-                        onChange={e => setPaymentForm({...paymentForm, apiKey: e.target.value})} 
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" 
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Crypto Wallet Address (USDT-TRC20)</label>
-                      <input 
-                        type="text" 
-                        placeholder="T..." 
-                        value={paymentForm.cryptoAddress} 
-                        onChange={e => setPaymentForm({...paymentForm, cryptoAddress: e.target.value})} 
-                        className="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none" 
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Local Payment Info (Bank Details)</label>
-                      <textarea 
-                        placeholder="Bank Name: ...&#10;Account: ...&#10;Name: ..." 
-                        value={paymentForm.bankInfo} 
-                        onChange={e => setPaymentForm({...paymentForm, bankInfo: e.target.value})} 
-                        className="w-full h-24 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none resize-none" 
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-[9px] text-slate-500 uppercase font-bold px-1">Deposit Instructions</label>
-                      <textarea 
-                        placeholder="Step 1: ...&#10;Step 2: ..." 
-                        value={systemLinks.instructions} 
-                        onChange={e => setSystemLinks({...systemLinks, instructions: e.target.value})} 
-                        className="w-full h-32 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-[10px] outline-none resize-none" 
-                      />
-                    </div>
-                    <button 
-                      disabled={isUpdatingSettings}
-                      className={`w-full bg-amber-600 py-3 rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2 ${isUpdatingSettings ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      {isUpdatingSettings ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          Saving...
-                        </>
-                      ) : (
-                        'Save Deposit Settings'
-                      )}
-                    </button>
-                  </form>
-                </section>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Messaging and Payouts */}
-      {activeAdminTab === 'messaging' && (
-        <section className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-          <textarea value={broadcastMsg} onChange={e => setBroadcastMsg(e.target.value)} placeholder="Message to all users..." className="w-full h-20 bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs outline-none" />
-          <button onClick={handleBroadcast} className="w-full bg-blue-600 py-3 rounded-xl font-bold text-xs uppercase">Send Broadcast</button>
-        </section>
-      )}
-
-      {activeAdminTab === 'users' && (
-        <div className="space-y-6 animate-in slide-in-from-bottom duration-300">
-          <section className="space-y-3">
-            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">User Directory ({users.length})</h3>
-            <div className="space-y-2">
-              {users.map(u => (
-                <div key={u.id} className={`bg-slate-800 p-4 rounded-3xl border ${u.isFlagged ? 'border-red-500/50 bg-red-900/5' : 'border-slate-700'} flex justify-between items-center`}>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <p className="text-sm font-bold">@{u.username}</p>
-                      {u.isFlagged && <span className="px-1.5 py-0.5 bg-red-600 text-[8px] font-black rounded uppercase">Flagged</span>}
-                    </div>
-                    <p className="text-[10px] text-slate-500 font-mono">ID: {u.id}</p>
-                    {u.isFlagged && <p className="text-[9px] text-red-400 font-medium mt-1">{u.flagReason}</p>}
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-bold text-blue-400">{u.balanceRiyal.toFixed(2)} SAR</p>
-                    <button 
-                      onClick={() => {
-                        setBalanceSearch(u.id.toString());
-                        setActiveAdminTab('balances');
-                        handleSearchUser(u.id.toString());
-                      }}
-                      className="text-[9px] text-slate-400 underline uppercase font-bold mt-1"
-                    >
-                      Manage
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
-      )}
-
-      {activeAdminTab === 'payouts' && (
-        <section className="space-y-8 animate-in slide-in-from-right duration-300">
-          {/* Stats Cards */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-1">
-              <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Total Paid Out</p>
-              <p className="text-sm font-black text-emerald-400">{payoutStats?.totalSAR.toFixed(2) || '0.00'} SAR</p>
-              <p className="text-[10px] text-slate-400 font-bold">{payoutStats?.totalUSDT.toFixed(2) || '0.00'} USDT</p>
-            </div>
-            <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-1">
-              <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Paid Users</p>
-              <p className="text-xl font-black text-white">{payoutStats?.totalUsers || '0'}</p>
-              <p className="text-[9px] text-slate-500 font-bold uppercase">Unique Accounts</p>
-            </div>
-            <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-1">
-              <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Daily Total</p>
-              <p className="text-sm font-black text-blue-400">{payoutStats?.dailySAR.toFixed(2) || '0.00'} SAR</p>
-              <p className="text-[10px] text-slate-400 font-bold">{payoutStats?.dailyUSDT.toFixed(2) || '0.00'} USDT</p>
-            </div>
-            <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-1">
-              <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Monthly Total</p>
-              <p className="text-sm font-black text-purple-400">{payoutStats?.monthlySAR.toFixed(2) || '0.00'} SAR</p>
-              <p className="text-[10px] text-slate-400 font-bold">{payoutStats?.monthlyUSDT.toFixed(2) || '0.00'} USDT</p>
-            </div>
-          </div>
-
-          {/* Search Bar */}
-          <div className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-4">
-            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest">Search Payout History</h3>
-            <div className="flex gap-2">
-              <input 
-                type="number" 
-                placeholder="User ID..." 
-                value={payoutSearch}
-                onChange={e => setPayoutSearch(e.target.value)}
-                className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs outline-none"
-              />
-              <button 
-                onClick={handleSearchPayouts}
-                disabled={isSearchingPayouts}
-                className="bg-blue-600 px-6 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest disabled:opacity-50"
-              >
-                {isSearchingPayouts ? '...' : 'FIND'}
-              </button>
-            </div>
-
-            {payoutSearchResults.length > 0 && (
-              <div className="space-y-3 pt-2">
-                <p className="text-[9px] text-blue-400 font-black uppercase tracking-widest">Results for {payoutSearch}</p>
-                {payoutSearchResults.map(w => (
-                  <div key={w.id} className="bg-slate-900/50 p-3 rounded-2xl border border-slate-700 flex justify-between items-center">
-                    <div>
-                      <p className="text-[10px] font-bold">{w.method}</p>
-                      <p className="text-[8px] text-slate-500 uppercase">{new Date(w.createdAt).toLocaleDateString()}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-[10px] font-black">{w.amount.toFixed(2)} {w.currency === 'Riyal' ? 'SAR' : 'USDT'}</p>
-                      <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full ${
-                        w.status === 'COMPLETED' ? 'bg-green-500/10 text-green-500' : 'bg-amber-500/10 text-amber-500'
-                      }`}>
-                        {w.status}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest flex items-center gap-2">
-              💰 Pending Withdrawals
-            </h3>
-            {withdrawals.filter(w => w.status === 'PENDING').length === 0 ? (
-              <div className="bg-slate-800/50 rounded-3xl border border-dashed border-slate-700 p-12 text-center space-y-4">
-                <div className="text-4xl opacity-20">💸</div>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">No pending requests.</p>
-              </div>
-            ) : (
-              withdrawals.filter(w => w.status === 'PENDING').map(w => (
-                <div key={w.id} className="bg-slate-800 p-4 rounded-3xl border border-slate-700 space-y-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-xs font-bold">User ID: {w.userId}</p>
-                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">{w.method} • {w.currency === 'Riyal' ? 'SAR' : 'USDT'}</p>
-                      <p className="text-[10px] text-blue-400 font-mono mt-1 break-all">Address: {w.address}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-green-400 font-bold text-sm">{w.localAmount || w.amount} {w.localCurrency || (w.currency === 'Riyal' ? 'SAR' : 'USDT')}</p>
-                      <p className="text-[8px] text-slate-500 mt-1">{new Date(w.createdAt).toLocaleString()}</p>
-                    </div>
-                  </div>
-                  <div className="flex gap-2 pt-2">
-                    <button 
-                      onClick={() => onAction(w.id, 'withdrawal', 'COMPLETED')}
-                      className="flex-1 bg-green-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-green-900/20 active:scale-95 transition-all"
-                    >
-                      Approve
-                    </button>
-                    <button 
-                      onClick={() => onAction(w.id, 'withdrawal', 'REJECTED')}
-                      className="flex-1 bg-red-600 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-red-900/20 active:scale-95 transition-all"
-                    >
-                      Reject
-                    </button>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <h3 className="text-[10px] text-slate-500 uppercase font-black px-1 tracking-widest flex items-center gap-2">
-              ✅ Processed Payouts
-            </h3>
-            {withdrawals.filter(w => w.status !== 'PENDING').length === 0 ? (
-              <div className="bg-slate-800/30 rounded-3xl border border-dashed border-slate-700/50 p-12 text-center">
-                <p className="text-[10px] text-slate-600 font-bold uppercase tracking-widest">No processed records found.</p>
-              </div>
-            ) : (
-              withdrawals.filter(w => w.status !== 'PENDING').map(w => (
-                <div key={w.id} className="bg-slate-800/50 p-4 rounded-3xl border border-slate-700/50 flex justify-between items-center opacity-80">
-                  <div>
-                    <p className="text-xs font-bold">User: {w.userId}</p>
-                    <p className="text-[9px] text-slate-500 font-bold uppercase">
-                      {w.method} • {new Date(w.createdAt).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs font-black text-white">{w.amount.toFixed(2)} {w.currency === 'Riyal' ? 'SAR' : 'USDT'}</p>
-                    <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full mt-1 inline-block ${
-                      w.status === 'COMPLETED' || w.status === 'APPROVED' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
-                    }`}>
-                      {w.status}
-                    </span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
-      )}
+          {activeAdminTab === 'logs' && isSuperAdmin && (
+            <AdminLogs />
+          )}
+        </motion.div>
+      </AnimatePresence>
     </div>
   );
 };

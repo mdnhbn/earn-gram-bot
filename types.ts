@@ -9,6 +9,9 @@ export enum TaskStatus {
 export interface User {
   id: number;
   username: string;
+  fullName?: string;
+  joinDate?: string;
+  totalTasksCompleted?: number;
   balanceRiyal: number;
   balanceCrypto: number;
   totalEarningsRiyal: number; // Cumulative earnings for leaderboard
@@ -17,6 +20,7 @@ export interface User {
   dailyBonusLastClaim?: string;
   lastBoostClaim?: string; // Track the last time boost earnings were used
   isBanned: boolean;
+  isRegistered?: boolean;
   role: 'user' | 'admin';
   warningCount: number;
   country?: string;
@@ -97,6 +101,8 @@ export interface AdminPaymentDetails {
   bankInfo: string;
   supportUsername: string;
   apiKey?: string;
+  apiSecret?: string;
+  gatewayUrl?: string;
 }
 
 export interface MaintenanceSettings {
@@ -116,6 +122,13 @@ export interface MaintenanceSettings {
   tosContent: string;
   reportLink: string;
   depositInstructions: string;
+  localPayConfig?: Record<string, Record<string, string>>;
+  minWithdraw?: number;
+  maxWithdraw?: number;
+  minDeposit?: number;
+  maxDeposit?: number;
+  season?: number;
+  dailyBonusAmount: number;
 }
 
 export interface CurrencyInfo {

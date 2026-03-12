@@ -3,6 +3,7 @@ import json
 import threading
 import telebot
 from flask import Flask, request, jsonify
+from bson import ObjectId
 try:
     from flask_cors import CORS
 except ImportError:
@@ -13,6 +14,16 @@ import database as db
 server = Flask(__name__)
 if CORS:
     CORS(server)
+
+def is_admin(admin_id):
+    """Check if a user is an admin."""
+    if not admin_id:
+        return False
+    try:
+        # 929198867 is the main admin, 0 and 12345678 are preview mode IDs
+        return int(admin_id) in [929198867, 0, 12345678]
+    except (ValueError, TypeError):
+        return False
 
 @server.route('/')
 def health():
@@ -31,17 +42,54 @@ def api_user():
         user['_id'] = str(user['_id'])
     return jsonify(user)
 
+@server.route('/api/init_user', methods=['POST'])
+def api_init_user():
+    try:
+        data = request.json
+        user_id = data.get('user_id') or data.get('id')
+        if not user_id:
+            return jsonify({"status": "error", "message": "User ID is required"}), 400
+            
+        # Extract inviter_id from start_param if present
+        inviter_id = data.get('inviter_id')
+        
+        user = db.create_user(data, inviter_id)
+        if user and '_id' in user:
+            user['_id'] = str(user['_id'])
+            
+        # Get full stats for the response
+        stats = db.get_user_stats(user_id)
+        if stats:
+            # Merge user data with stats
+            user.update(stats)
+            
+        return jsonify(user)
+    except Exception as e:
+        print(f"[ERROR] init_user failed: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @server.route('/api/update_balance', methods=['POST'])
 def api_update_balance():
     try:
         data = request.json
-        user_id = int(data.get('id'))
+        user_id = int(data.get('user_id') or data.get('id'))
         amount = float(data.get('amount', 0))
-        task_name = data.get('task_name', 'Task')
+        task_name = data.get('task_name', data.get('description', 'Task'))
+        currency = data.get('currency', 'SAR')
+        tx_type = data.get('type', 'EARNING')
         
-        print(f"[DEBUG] Updating balance for user {user_id}: {amount} SAR for {task_name}")
+        print(f"[DEBUG] Updating balance for user {user_id}: {amount} {currency} for {task_name}")
         
-        db.process_reward(user_id, amount, task_name)
+        if amount < 0:
+            success, msg = db.deduct_balance(user_id, abs(amount), currency, tx_type, task_name)
+            if not success:
+                return jsonify({"status": "error", "message": msg}), 400
+        elif tx_type == 'EARNING':
+            db.process_reward(user_id, amount, task_name)
+        else:
+            # For refunds or adjustments
+            db.update_user_balance(user_id, amount, currency, tx_type, task_name)
+            
         user = db.get_user(user_id)
         if user and '_id' in user:
             user['_id'] = str(user['_id'])
@@ -62,6 +110,10 @@ def api_user_stats(user_id):
         "balance_sar": 0.0,
         "balance_usdt": 0.0,
         "total_earnings_sar": 0.0,
+        "total_tasks_completed": 0,
+        "full_name": "Guest User",
+        "join_date": "March 2026",
+        "is_registered": True, # Default to True for preview/guest to avoid registration screen
         "rank": 0,
         "is_flagged": False,
         "flag_reason": "",
@@ -106,6 +158,21 @@ def api_delete_ad_task(ad_id):
         return jsonify({"status": "success"}), 200
     return jsonify({"status": "error"}), 500
 
+@server.route('/api/update_profile', methods=['POST'])
+def api_update_profile():
+    try:
+        data = request.json
+        user_id = data.get('user_id')
+        if not user_id:
+            return jsonify({"status": "error", "message": "User ID is required"}), 400
+            
+        success, msg = db.update_user_profile(user_id, data)
+        if success:
+            return jsonify({"status": "success", "message": msg}), 200
+        return jsonify({"status": "error", "message": msg}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @server.route('/api/sync_security', methods=['POST'])
 def api_sync_security():
     data = request.json
@@ -120,7 +187,7 @@ def api_admin_user_details(user_id):
         admin_id = request.args.get('admin_id')
         print(f"[DEBUG] Fetching user details for {user_id} requested by admin {admin_id}")
         
-        if not admin_id or int(admin_id) != 929198867:
+        if not is_admin(admin_id):
             print(f"[ERROR] Unauthorized access attempt by {admin_id}")
             return jsonify({"status": "error", "message": "Unauthorized"}), 403
         
@@ -147,9 +214,10 @@ def api_admin_search_user():
     try:
         user_id = request.args.get('user_id')
         admin_id = request.args.get('admin_id')
+        
         print(f"[DEBUG] Admin {admin_id} searching for user {user_id}")
         
-        if not admin_id or int(admin_id) != 929198867:
+        if not is_admin(admin_id):
             return jsonify({"status": "error", "message": "Unauthorized"}), 403
             
         if not user_id:
@@ -159,6 +227,7 @@ def api_admin_search_user():
         if user:
             return jsonify({
                 "status": "success",
+                "id": user.get("id"),
                 "username": user.get("username"),
                 "balance_sar": user.get("balanceRiyal", 0.0),
                 "balance_usdt": user.get("balanceCrypto", 0.0),
@@ -174,14 +243,14 @@ def api_admin_search_user():
 def api_admin_update_balance():
     data = request.json
     admin_id = data.get('admin_id')
-    if not admin_id or int(admin_id) != 929198867:
+    if not is_admin(admin_id):
         return jsonify({"status": "error", "message": "Unauthorized"}), 403
     
     user_id = data.get('user_id')
     amount = data.get('amount')
     currency = data.get('currency')
     
-    if db.admin_update_balance(user_id, amount, currency):
+    if db.update_user_balance(user_id, amount, currency):
         return jsonify({"status": "success"}), 200
     return jsonify({"status": "error"}), 500
 
@@ -189,12 +258,67 @@ def api_admin_update_balance():
 def api_admin_reset_device():
     data = request.json
     admin_id = data.get('admin_id')
-    if not admin_id or int(admin_id) != 929198867:
+    if not is_admin(admin_id):
         return jsonify({"status": "error", "message": "Unauthorized"}), 403
     
     if db.reset_device(data.get('user_id')):
         return jsonify({"status": "success"}), 200
     return jsonify({"status": "error"}), 500
+
+@server.route('/api/admin/reset_strikes', methods=['POST'])
+def api_admin_reset_strikes():
+    try:
+        data = request.json
+        admin_id = data.get('admin_id')
+        user_id = data.get('user_id')
+        
+        if not is_admin(admin_id):
+            return jsonify({"status": "error", "message": "Unauthorized"}), 403
+            
+        if db.reset_strikes(user_id):
+            return jsonify({"status": "success", "message": "Strikes reset"}), 200
+        return jsonify({"status": "error", "message": "Failed to reset strikes"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@server.route('/api/admin/ban_user', methods=['POST'])
+def api_admin_ban_user():
+    try:
+        data = request.json
+        admin_id = data.get('admin_id')
+        user_id = data.get('user_id')
+        status = data.get('status', True)
+        
+        if not is_admin(admin_id):
+            return jsonify({"status": "error", "message": "Unauthorized"}), 403
+            
+        if db.ban_user(user_id, status):
+            return jsonify({"status": "success", "message": f"User {'banned' if status else 'unbanned'}"}), 200
+        return jsonify({"status": "error", "message": "Action failed"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@server.route('/api/admin/send_message', methods=['POST'])
+def api_admin_send_message():
+    try:
+        data = request.json
+        admin_id = data.get('admin_id')
+        user_id = data.get('user_id')
+        message = data.get('message')
+        
+        if not is_admin(admin_id):
+            return jsonify({"status": "error", "message": "Unauthorized"}), 403
+            
+        if not user_id or not message:
+            return jsonify({"status": "error", "message": "Missing user_id or message"}), 400
+            
+        try:
+            bot.send_message(int(user_id), f"📩 *Message from Admin:*\n\n{message}", parse_mode='Markdown')
+            return jsonify({"status": "success", "message": "Message sent"}), 200
+        except Exception as e:
+            return jsonify({"status": "error", "message": f"Telegram error: {str(e)}"}), 500
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 # --- DEPOSIT API ---
 
@@ -229,7 +353,7 @@ def api_withdraw():
 def api_admin_withdrawals():
     try:
         admin_id = request.args.get('admin_id')
-        if not admin_id or int(admin_id) != 929198867:
+        if not is_admin(admin_id):
             return jsonify({"status": "error", "message": "Unauthorized"}), 403
             
         status = request.args.get('status')
@@ -243,7 +367,7 @@ def api_admin_withdrawals():
 def api_payout_stats():
     try:
         admin_id = request.args.get('admin_id')
-        if not admin_id or int(admin_id) != 929198867:
+        if not is_admin(admin_id):
             return jsonify({"status": "error", "message": "Unauthorized"}), 403
             
         stats = db.get_payout_stats()
@@ -253,11 +377,12 @@ def api_payout_stats():
     except Exception as e:
         print(f"[ERROR] api_payout_stats failed: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
+@server.route('/api/admin/process_withdrawal', methods=['POST'])
 def api_admin_process_withdrawal():
     try:
         data = request.json
         admin_id = data.get('admin_id')
-        if not admin_id or int(admin_id) != 929198867:
+        if not is_admin(admin_id):
             return jsonify({"status": "error", "message": "Unauthorized"}), 403
             
         withdrawal_id = data.get('withdrawal_id')
@@ -270,6 +395,7 @@ def api_admin_process_withdrawal():
     except Exception as e:
         print(f"[ERROR] api_admin_process_withdrawal failed: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
+@server.route('/api/deposit/crypto', methods=['POST'])
 def api_deposit_crypto():
     data = request.json
     user_id = data.get('user_id')
@@ -348,7 +474,7 @@ def api_deposit_local():
 @server.route('/api/admin/deposits', methods=['GET'])
 def api_admin_deposits():
     admin_id = request.args.get('admin_id')
-    if not admin_id or int(admin_id) != 929198867:
+    if not is_admin(admin_id):
         return jsonify({"status": "error", "message": "Unauthorized"}), 403
     
     status = request.args.get('status')
@@ -358,14 +484,14 @@ def api_admin_deposits():
 def api_admin_approve_deposit():
     data = request.json
     admin_id = data.get('admin_id')
-    if not admin_id or int(admin_id) != 929198867:
+    if not is_admin(admin_id):
         return jsonify({"status": "error", "message": "Unauthorized"}), 403
     
     deposit_id = data.get('deposit_id')
     success, msg = db.approve_deposit(deposit_id)
     if success:
         # Notify user
-        deposit = db.deposits_col.find_one({"_id": db.ObjectId(deposit_id)})
+        deposit = db.deposits_col.find_one({"_id": ObjectId(deposit_id)})
         if deposit:
             bot.send_message(deposit['userId'], f"✅ *DEPOSIT APPROVED*\n\nYour deposit of {deposit['amount']} {deposit['currency']} has been credited to your account. Thank you!")
         return jsonify({"status": "success"}), 200
@@ -375,7 +501,7 @@ def api_admin_approve_deposit():
 def api_admin_reject_deposit():
     data = request.json
     admin_id = data.get('admin_id')
-    if not admin_id or int(admin_id) != 929198867:
+    if not is_admin(admin_id):
         return jsonify({"status": "error", "message": "Unauthorized"}), 403
     
     deposit_id = data.get('deposit_id')
@@ -411,6 +537,9 @@ def api_daily_bonus():
     success, message = db.claim_daily_bonus(user_id)
     if success:
         user = db.get_user(user_id)
+        if not user:
+            return jsonify({"success": False, "message": "User not found after claim"}), 404
+            
         return jsonify({
             "success": True, 
             "message": message, 
@@ -435,7 +564,7 @@ def api_verify():
         return jsonify({"status": "error", "message": "Missing user_id"}), 400
     
     # Security Bypass for Admin
-    if int(user_id) == 929198867:
+    if is_admin(user_id):
         db.users_col.update_one({"id": int(user_id)}, {"$set": {"isVerified": True}})
         return jsonify({"status": "success", "message": "Admin bypass active"}), 200
     
@@ -452,7 +581,7 @@ def api_broadcast():
     admin_id = data.get('admin_id')
     message = data.get('message')
     
-    if not admin_id or int(admin_id) != 929198867:
+    if not is_admin(admin_id):
         return jsonify({"status": "error", "message": "Unauthorized"}), 403
     
     if not message:
@@ -480,7 +609,7 @@ def api_broadcast():
 def api_reset_leaderboard():
     data = request.json
     admin_id = data.get('admin_id')
-    if not admin_id or int(admin_id) != 929198867:
+    if not is_admin(admin_id):
         return jsonify({"status": "error", "message": "Unauthorized"}), 403
     
     if db.reset_leaderboard():
@@ -491,7 +620,7 @@ def api_reset_leaderboard():
 def api_update_settings():
     data = request.json
     admin_id = data.get('admin_id')
-    if not admin_id or int(admin_id) != 929198867:
+    if not is_admin(admin_id):
         return jsonify({"status": "error", "message": "Unauthorized"}), 403
     
     # Fetch current settings

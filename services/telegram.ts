@@ -27,6 +27,10 @@ export const TelegramService = {
     return getTg()?.initData || '';
   },
 
+  getStartParam: () => {
+    return getTg()?.initDataUnsafe?.start_param || null;
+  },
+
   close: () => {
     getTg()?.close();
   },
@@ -50,12 +54,13 @@ export const TelegramService = {
     }
   },
 
-  showPopup: (params: { title?: string; message: string; buttons?: any[] }) => {
+  showPopup: (params: { title?: string; message: string; buttons?: any[] }, callback?: (id?: string) => void) => {
     const tg = getTg();
     if (tg?.isVersionAtLeast && tg.isVersionAtLeast('6.2')) {
-      tg.showPopup(params);
+      tg.showPopup(params, callback);
     } else {
       window.alert(`${params.title ? params.title + '\n' : ''}${params.message}`);
+      callback?.();
     }
   },
 

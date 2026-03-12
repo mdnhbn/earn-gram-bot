@@ -11,7 +11,8 @@ const DEFAULT_AD_TASKS: AdTask[] = [];
 
 export const MOCK_USER: User = {
   id: 0,
-  username: 'Loading...',
+  username: 'Guest',
+  fullName: 'Guest User',
   balanceRiyal: 0,
   balanceCrypto: 0,
   totalEarningsRiyal: 0,
@@ -124,23 +125,29 @@ export const getMaintenanceSettings = (): MaintenanceSettings => {
     wallet: false,
     verificationChannels: ['@EarnGramNews', '@EarnGramSupport', '@EarnGramCrypto', '@EarnGramGlobal', '@EarnGramCommunity'],
     paymentDetails: {
-      cryptoAddress: 'T-Your-TRC20-Address-Here',
-      bankInfo: 'Bank: X Bank\nAccount: 123456789\nName: Admin',
-      supportUsername: 'YourSupportUsername'
+      cryptoAddress: '',
+      bankInfo: '',
+      supportUsername: '',
+      apiKey: '',
+      apiSecret: '',
+      gatewayUrl: ''
     },
-    boostAdLink: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ', // Functional placeholder
-    boostRewardRiyal: 0.05,
+    boostAdLink: '',
+    boostRewardRiyal: 0.0,
     boostDuration: 15,
     headerAdScript: '',
     footerAdScript: '',
-    supportLink: 'https://t.me/EarnGramSupport',
-    tosContent: 'Welcome to EarnGram! To maintain a fair ecosystem, please adhere to these rules:\n\n' +
-               '• NO MULTI-ACCOUNTS: One account per person/device. Violators are permanently banned.\n' +
-               '• 3-STRIKE POLICY: Leaving tasks early or using VPNs adds strikes. 3 strikes = Ban.\n' +
-               '• WITHDRAWALS: Processed within 24-72 hours after verification.\n' +
-               '• FAIR PLAY: Use of automation, scripts, or bots will result in immediate termination.',
-    reportLink: 'https://t.me/EarnGramSupportBot',
-    depositInstructions: '1. Copy the wallet address or bank details below.\n2. Transfer the desired amount.\n3. Take a screenshot of the successful transaction.\n4. Click "Contact Support" and send the screenshot with your User ID.'
+    supportLink: '',
+    tosContent: 'Welcome to EarnGram! Please follow the rules.',
+    reportLink: '',
+    depositInstructions: 'Contact support for deposit instructions.',
+    localPayConfig: {},
+    minWithdraw: 10,
+    maxWithdraw: 1000,
+    minDeposit: 5,
+    maxDeposit: 5000,
+    season: 2,
+    dailyBonusAmount: 1.0
   };
 };
 

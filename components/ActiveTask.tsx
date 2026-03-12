@@ -8,7 +8,7 @@ interface ActiveTaskProps {
   onClaim: () => void;
   onCancel: () => void;
   isPaused: boolean;
-  onFocusSignal: (isLost: boolean) => void;
+  onFocusSignal: (isLost: boolean, isManual?: boolean) => void;
 }
 
 const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaused, onFocusSignal }) => {
@@ -67,19 +67,18 @@ const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaus
     return `${PLAYER_PATH}?${params.toString()}`;
   };
 
-  const handleBackClick = () => {
+  const handleBackClick = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isConfirmingExit) return;
+    
+    console.log('Back button clicked');
+    TelegramService.haptic('medium');
     setIsConfirmingExit(true);
     isConfirmingRef.current = true;
-    
-    TelegramService.showConfirm('⚠️ Warning: Leaving this page will cancel your current progress. Are you sure you want to go back?', (ok) => {
-      if (ok) {
-        onCancel();
-      } else {
-        setIsConfirmingExit(false);
-        isConfirmingRef.current = false;
-        onFocusSignal(false);
-      }
-    });
+    onFocusSignal(true, true); // Signal focus lost (manual) to pause any timers
   };
 
   const playerUrl = getPlayerUrl();
@@ -88,12 +87,13 @@ const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaus
   return (
     <div className="fixed inset-0 bg-slate-900 z-[60] flex flex-col animate-in slide-in-from-bottom duration-500 overflow-hidden">
       {/* Container Header */}
-      <header className="p-4 bg-slate-800 border-b border-slate-700 flex items-center justify-between">
+      <header className="pt-8 pb-4 px-4 bg-slate-800 border-b border-slate-700 flex items-center justify-between shadow-lg relative z-[50]">
         <button 
           onClick={handleBackClick}
-          className="text-slate-400 text-xs font-bold uppercase tracking-wider px-2 hover:text-white transition-colors"
+          onTouchStart={handleBackClick}
+          className="flex items-center gap-2 bg-slate-700/80 hover:bg-slate-600 text-white text-[11px] font-black uppercase tracking-widest px-6 py-3 rounded-2xl transition-all active:scale-90 border border-slate-500/30 shadow-xl"
         >
-          ← Back
+          <span className="text-lg">←</span> BACK
         </button>
         <div className="text-center">
           <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Focused Task Mode</p>
@@ -113,22 +113,6 @@ const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaus
           </div>
         ) : (
           <>
-            {(isPaused || isConfirmingExit) && (
-              <div className="absolute inset-0 bg-black/80 backdrop-blur-md z-[70] flex items-center justify-center text-center p-8">
-                <div className="animate-in zoom-in duration-300">
-                  <div className="text-4xl mb-4">{isConfirmingExit ? '🛑' : '⚠️'}</div>
-                  <h2 className="text-xl font-black text-white uppercase tracking-tighter mb-2">
-                    {isConfirmingExit ? 'Cancel Task?' : 'Timer Paused'}
-                  </h2>
-                  <p className="text-slate-400 text-sm">
-                    {isConfirmingExit 
-                      ? 'Please confirm if you want to abort this session.' 
-                      : 'You left the secure viewer. Return to continue earning.'}
-                  </p>
-                </div>
-              </div>
-            )}
-            
             {isIframeLoading && !hasLoadError && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10">
                 <div className="w-10 h-10 border-4 border-slate-800 border-t-blue-500 rounded-full animate-spin mb-4" />
@@ -155,6 +139,44 @@ const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaus
           Secure Tracking Provided by EarnGram Protocol v6.0
         </p>
       </footer>
+
+      {/* Global Overlay (Covers Header & Main) */}
+      {(isPaused || isConfirmingExit) && (
+        <div className="absolute inset-0 bg-black/90 backdrop-blur-xl z-[100] flex items-center justify-center text-center p-8">
+          <div className="animate-in zoom-in duration-300 max-w-xs w-full">
+            <div className="text-4xl mb-4">{isConfirmingExit ? '🛑' : '⚠️'}</div>
+            <h2 className="text-xl font-black text-white uppercase tracking-tighter mb-2">
+              {isConfirmingExit ? 'Cancel Task?' : 'Timer Paused'}
+            </h2>
+            <p className="text-slate-400 text-sm mb-6">
+              {isConfirmingExit 
+                ? 'Please confirm if you want to abort this session.' 
+                : 'You left the secure viewer. Return to continue earning.'}
+            </p>
+
+            {isConfirmingExit && (
+              <div className="flex flex-col gap-3">
+                <button 
+                  onClick={() => onCancel()}
+                  className="w-full bg-red-600 hover:bg-red-500 text-white font-black py-3 rounded-2xl uppercase tracking-widest text-xs transition-all active:scale-95"
+                >
+                  Yes, Abort Task
+                </button>
+                <button 
+                  onClick={() => {
+                    setIsConfirmingExit(false);
+                    isConfirmingRef.current = false;
+                    onFocusSignal(false);
+                  }}
+                  className="w-full bg-slate-800 hover:bg-slate-700 text-slate-300 font-black py-3 rounded-2xl uppercase tracking-widest text-xs transition-all active:scale-95"
+                >
+                  No, Stay Here
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

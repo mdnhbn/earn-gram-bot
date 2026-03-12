@@ -9,13 +9,19 @@ logger = logging.getLogger(__name__)
 
 # Configuration
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb+srv://admin:password@cluster.mongodb.net/earngram?retryWrites=true&w=majority')
+MONGO_URI2 = os.getenv('MONGO_URI2', MONGO_URI)
+MONGO_URI3 = os.getenv('MONGO_URI3', MONGO_URI)
 
 client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=2000)
+client2 = MongoClient(MONGO_URI2, serverSelectionTimeoutMS=2000)
+client3 = MongoClient(MONGO_URI3, serverSelectionTimeoutMS=2000)
 
 def test_connection():
     try:
         client.admin.command('ping')
-        logger.info("Successfully connected to MongoDB.")
+        client2.admin.command('ping')
+        client3.admin.command('ping')
+        logger.info("Successfully connected to all MongoDB instances.")
         return True
     except Exception as e:
         logger.error(f"MongoDB connection failed: {e}")
@@ -24,17 +30,20 @@ def test_connection():
 # Test connection in background or on first request
 # For now, we just define the collections
 db = client['earngram_prod']
+db_tasks = client2['earngram_prod']
+db_logs = client3['earngram_prod']
 
 users_col = db['users']
-transactions_col = db['transactions']
-withdrawals_col = db['withdrawals']
-tasks_col = db['tasks']
-ad_tasks_col = db['ad_tasks']
-settings_col = db['settings']
-deposits_col = db['deposits']
+transactions_col = db_logs['transactions']
+withdrawals_col = db_logs['withdrawals']
+tasks_col = db_tasks['tasks']
+ad_tasks_col = db_tasks['ad_tasks']
+settings_col = db_logs['settings']
+deposits_col = db_logs['deposits']
 
 # Referral Percentages: Level 1 (10%), Level 2 (5%), Level 3 (2%), Level 4 (1%)
 REF_PERCENTAGES = [0.10, 0.05, 0.02, 0.01]
+SIGNUP_COMMISSION = 0.50 # SAR awarded to inviter on new user signup
 
 def get_user(user_id):
     """Fetch user by Telegram ID."""
@@ -53,32 +62,56 @@ def get_user(user_id):
 def create_user(tg_user, inviter_id=None):
     """Initialize a new user or return existing."""
     try:
-        user = get_user(tg_user.id)
+        # tg_user can be a dict or an object
+        user_id = tg_user.get('id') if isinstance(tg_user, dict) else tg_user.id
+        username = tg_user.get('username') if isinstance(tg_user, dict) else tg_user.username
+        first_name = tg_user.get('first_name') if isinstance(tg_user, dict) else (tg_user.first_name if hasattr(tg_user, 'first_name') else None)
+        last_name = tg_user.get('last_name') if isinstance(tg_user, dict) else (tg_user.last_name if hasattr(tg_user, 'last_name') else None)
+        
+        user = get_user(user_id)
         if not user:
+            full_name = f"{first_name} {last_name}".strip() if first_name and last_name else (first_name or username or f"User_{user_id}")
+            
             new_user = {
-                "id": tg_user.id,
-                "username": tg_user.username or f"user_{tg_user.id}",
+                "id": user_id,
+                "username": username or f"user_{user_id}",
+                "fullName": full_name,
                 "balanceRiyal": 0.0,
                 "balanceCrypto": 0.0,
                 "totalEarningsRiyal": 0.0,
+                "totalTasksCompleted": 0,
                 "referrals": 0,
-                "invitedBy": int(inviter_id) if inviter_id and str(inviter_id).isdigit() else None,
+                "invitedBy": int(inviter_id) if inviter_id and str(inviter_id).isdigit() and int(inviter_id) != user_id else None,
                 "isBanned": False,
+                "isRegistered": True,
                 "warningCount": 0,
                 "isVerified": False,
                 "lastDepositAttempt": None,
-                "createdAt": datetime.utcnow()
+                "createdAt": datetime.utcnow(),
+                "joinDate": datetime.utcnow().strftime("%B %Y")
             }
             users_col.insert_one(new_user)
-            logger.info(f"Created new user: {tg_user.id}")
+            logger.info(f"Created new user: {user_id}")
             
-            # Update inviter count
+            # Update inviter count and award signup commission
             if new_user["invitedBy"]:
-                users_col.update_one({"id": new_user["invitedBy"]}, {"$inc": {"referrals": 1}})
+                inviter_id = new_user["invitedBy"]
+                users_col.update_one({"id": inviter_id}, {"$inc": {"referrals": 1, "balanceRiyal": SIGNUP_COMMISSION, "totalEarningsRiyal": SIGNUP_COMMISSION}})
+                
+                # Log transaction for inviter
+                transactions_col.insert_one({
+                    "userId": inviter_id,
+                    "amount": SIGNUP_COMMISSION,
+                    "type": "EARNING",
+                    "description": f"Signup Commission from {user_id}",
+                    "timestamp": datetime.utcnow()
+                })
+                logger.info(f"Awarded {SIGNUP_COMMISSION} SAR signup commission to inviter {inviter_id}")
+                
             return new_user
         return user
     except Exception as e:
-        logger.error(f"Error creating user {tg_user.id}: {e}")
+        logger.error(f"Error creating user {tg_user}: {e}")
         return None
 
 def add_strike(user_id):
@@ -101,6 +134,24 @@ def add_strike(user_id):
         logger.error(f"Error adding strike to user {user_id}: {e}")
         return False
 
+def update_user_profile(user_id, profile_data):
+    """Update user profile information."""
+    try:
+        user_id = int(user_id)
+        # Filter allowed fields
+        allowed_fields = ["fullName", "username"]
+        update_payload = {k: v for k, v in profile_data.items() if k in allowed_fields}
+        update_payload["isRegistered"] = True
+        
+        result = users_col.update_one({"id": user_id}, {"$set": update_payload})
+        if result.modified_count > 0:
+            logger.info(f"Updated profile for user {user_id}: {update_payload}")
+            return True, "Profile updated successfully"
+        return False, "No changes made"
+    except Exception as e:
+        logger.error(f"Error updating profile for user {user_id}: {e}")
+        return False, str(e)
+
 def process_reward(user_id, amount_riyal, task_name="Video Task"):
     """Adds balance to user and pays out 4 levels of referrals."""
     try:
@@ -113,7 +164,8 @@ def process_reward(user_id, amount_riyal, task_name="Video Task"):
             {
                 "$inc": {
                     "balanceRiyal": amount_riyal,
-                    "totalEarningsRiyal": amount_riyal
+                    "totalEarningsRiyal": amount_riyal,
+                    "totalTasksCompleted": 1
                 }
             }
         )
@@ -165,6 +217,35 @@ def process_reward(user_id, amount_riyal, task_name="Video Task"):
 
     except Exception as e:
         logger.error(f"Error processing reward for user {user_id}: {e}")
+
+def deduct_balance(user_id, amount, currency="SAR", tx_type="PAYMENT", description="Ad Promotion"):
+    """Deduct balance from user without affecting totalEarningsRiyal."""
+    try:
+        user_id = int(user_id)
+        field = "balanceRiyal" if currency == "SAR" else "balanceCrypto"
+        amount = abs(float(amount))
+        
+        user = get_user(user_id)
+        if not user or user.get(field, 0) < amount:
+            return False, "Insufficient balance"
+            
+        # Deduct
+        users_col.update_one({"id": user_id}, {"$inc": {field: -amount}})
+        
+        # Log transaction
+        transactions_col.insert_one({
+            "userId": user_id,
+            "amount": amount,
+            "type": tx_type,
+            "description": description,
+            "currency": currency,
+            "timestamp": datetime.utcnow()
+        })
+        logger.info(f"Deducted {amount} {currency} from user {user_id} for {description}")
+        return True, "Success"
+    except Exception as e:
+        logger.error(f"Error deducting balance for user {user_id}: {e}")
+        return False, str(e)
 
 def request_withdrawal(user_id, amount, method, address, currency="SAR"):
     """Handle withdrawal request and deduct balance."""
@@ -334,6 +415,10 @@ def get_user_stats(user_id):
                 "balance_sar": user.get("balanceRiyal", 0.0),
                 "balance_usdt": user.get("balanceCrypto", 0.0),
                 "total_earnings_sar": total_earnings,
+                "total_tasks_completed": user.get("totalTasksCompleted", 0),
+                "full_name": user.get("fullName", user.get("username", f"User_{user_id}")),
+                "join_date": user.get("joinDate", user.get("createdAt", datetime.utcnow()).strftime("%B %Y") if isinstance(user.get("createdAt"), datetime) else "March 2026"),
+                "is_registered": user.get("isRegistered", False),
                 "rank": rank,
                 "is_flagged": user.get("isFlagged", False),
                 "flag_reason": user.get("flagReason", ""),
@@ -462,13 +547,42 @@ def sync_security(user_id, device_id, ip):
 def reset_device(user_id):
     """Clear device ID and last IP for a user (Admin only action)."""
     try:
+        if not user_id:
+            return False
         users_col.update_one(
             {"id": int(user_id)},
             {"$set": {"deviceId": None, "lastIp": None, "isFlagged": False, "flagReason": ""}}
         )
+        logger.info(f"Admin reset device for user {user_id}")
         return True
     except Exception as e:
         logger.error(f"Error resetting device for user {user_id}: {e}")
+        return False
+
+def reset_strikes(user_id):
+    """Reset warning count for a user (Admin only action)."""
+    try:
+        users_col.update_one(
+            {"id": int(user_id)},
+            {"$set": {"warningCount": 0, "isBanned": False}}
+        )
+        logger.info(f"Admin reset strikes for user {user_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Error resetting strikes for user {user_id}: {e}")
+        return False
+
+def ban_user(user_id, status=True):
+    """Ban or unban a user (Admin only action)."""
+    try:
+        users_col.update_one(
+            {"id": int(user_id)},
+            {"$set": {"isBanned": status}}
+        )
+        logger.info(f"Admin {'banned' if status else 'unbanned'} user {user_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Error changing ban status for user {user_id}: {e}")
         return False
 
 def get_maintenance_settings():
@@ -518,14 +632,21 @@ def claim_daily_bonus(user_id):
                     minutes = (remaining % 3600) // 60
                     return False, f"Already claimed. Try again in {hours}h {minutes}m"
         
-        # Process reward (1.00 SAR)
-        reward = 1.00
+        # Process reward from settings
+        settings = get_maintenance_settings()
+        reward = 1.0
+        if settings and "dailyBonusAmount" in settings:
+            try:
+                reward = float(settings["dailyBonusAmount"])
+            except:
+                pass
+        
         process_reward(user_id, reward, "Daily Bonus")
         
         # Update last claim time
         users_col.update_one({"id": user_id}, {"$set": {"dailyBonusLastClaim": now}})
         
-        return True, "Daily Bonus Claimed! +1.00 SAR"
+        return True, f"Daily Bonus Claimed! +{reward:.2f} SAR"
     except Exception as e:
         logger.error(f"Error claiming daily bonus for user {user_id}: {e}")
         return False, "Server error, please try again"
@@ -545,14 +666,31 @@ def update_maintenance_settings(settings_data):
         logger.error(f"Error updating maintenance settings: {e}")
         return False
 
-def admin_update_balance(user_id, amount, currency):
-    """Update user balance (Admin only action)."""
+def update_user_balance(user_id, amount, currency="SAR", tx_type="ADJUSTMENT", description="Balance Adjustment"):
+    """Update user balance without affecting totalEarningsRiyal."""
     try:
+        if not user_id:
+            return False
+        user_id = int(user_id)
         field = "balanceRiyal" if currency == "SAR" else "balanceCrypto"
+        
+        # Update balance
         users_col.update_one(
-            {"id": int(user_id)},
+            {"id": user_id},
             {"$inc": {field: float(amount)}}
         )
+        
+        # Record transaction
+        transactions_col.insert_one({
+            "userId": user_id,
+            "amount": float(amount),
+            "type": tx_type,
+            "description": description,
+            "currency": currency,
+            "timestamp": datetime.utcnow()
+        })
+        
+        logger.info(f"Updated {currency} balance for user {user_id} by {amount} ({description})")
         return True
     except Exception as e:
         logger.error(f"Error updating balance for user {user_id}: {e}")

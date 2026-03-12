@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { User, Task, AdTask, AdView, TaskSubmission, WithdrawalRequest, TaskStatus, MaintenanceSettings, Transaction, CurrencyInfo } from './types';
 import { getCurrentUser, getTasks, saveTasks, getAdTasks, saveAdTasks, getAdViews, saveAdViews, getSubmissions, saveSubmissions, getWithdrawals, saveWithdrawals, getUsers, saveUsers, saveActiveTask, getActiveTask, getMaintenanceSettings, saveMaintenanceSettings, getTransactions, saveTransactions, ADMIN_TELEGRAM_ID, isUserAdmin } from './state';
 import { EXCHANGE_RATES, CURRENCY_LABELS } from './constants';
@@ -148,6 +149,7 @@ const App: React.FC = () => {
   const [liveRank, setLiveRank] = useState<number | null>(null);
   const [liveLeaderboard, setLiveLeaderboard] = useState<any[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(null); // null = unknown, true = connected, false = failed
   const [isSecurityBlocked, setIsSecurityBlocked] = useState(false);
   const initialFetchDone = useRef(false);
@@ -161,19 +163,20 @@ const App: React.FC = () => {
   // Real-time synchronization: Initialize User from Telegram Data
   const currentUser = useMemo(() => {
     const tgUser = TelegramService.getUser();
-    if (!tgUser || !tgUser.id) {
-      // Return a stable mock user for preview if TG user is missing
-      return users[0] || {
-        id: 12345678,
-        username: 'PreviewUser',
-        balanceRiyal: 100,
-        balanceCrypto: 10,
-        totalEarningsRiyal: 50,
+    if (!tgUser || !tgUser.id || tgUser.id === 0) {
+      // Return a minimal mock user for preview if TG user is missing
+      return {
+        id: 0,
+        username: 'Guest',
+        fullName: 'Guest User',
+        balanceRiyal: 0,
+        balanceCrypto: 0,
+        totalEarningsRiyal: 0,
         referrals: 0,
         isBanned: false,
-        role: 'admin',
+        role: 'user',
         warningCount: 0,
-        isVerified: true,
+        isVerified: false,
         isFlagged: false,
         flagReason: ''
       } as User;
@@ -186,6 +189,7 @@ const App: React.FC = () => {
     return {
         id: tgUser.id,
         username: tgUser.username || `user_${tgUser.id}`,
+        fullName: tgUser.first_name ? `${tgUser.first_name} ${tgUser.last_name || ''}`.trim() : `User ${tgUser.id}`,
         balanceRiyal: 0,
         balanceCrypto: 0,
         totalEarningsRiyal: 0,
@@ -260,6 +264,10 @@ const App: React.FC = () => {
           balance_sar: 0,
           balance_usdt: 0,
           total_earnings_sar: 0,
+          total_tasks_completed: 0,
+          full_name: "",
+          join_date: "",
+          is_registered: true,
           rank: 0,
           is_flagged: false,
           flag_reason: "",
@@ -267,7 +275,7 @@ const App: React.FC = () => {
           ...rawData
         };
         
-        setLiveRank(data.rank);
+        setLiveRank(data.rank || null);
         
         setUsers(prevUsers => {
           let userExists = false;
@@ -279,6 +287,10 @@ const App: React.FC = () => {
                 balanceRiyal: data.balance_sar,
                 balanceCrypto: data.balance_usdt,
                 totalEarningsRiyal: data.total_earnings_sar,
+                totalTasksCompleted: data.total_tasks_completed,
+                fullName: data.full_name,
+                joinDate: data.join_date,
+                isRegistered: data.is_registered,
                 isFlagged: data.is_flagged,
                 flagReason: data.flag_reason,
                 deviceId: data.device_id
@@ -293,6 +305,10 @@ const App: React.FC = () => {
               balanceRiyal: data.balance_sar,
               balanceCrypto: data.balance_usdt,
               totalEarningsRiyal: data.total_earnings_sar,
+              totalTasksCompleted: data.total_tasks_completed,
+              fullName: data.full_name,
+              joinDate: data.join_date,
+              isRegistered: data.is_registered,
               isFlagged: data.is_flagged,
               flagReason: data.flag_reason,
               deviceId: data.device_id
@@ -308,7 +324,7 @@ const App: React.FC = () => {
       const lbResponse = await fetchWithTimeout(`${apiUrl}/api/leaderboard`, {}, 4000);
       if (lbResponse.ok) {
         const lbData = await lbResponse.json();
-        setLiveLeaderboard(lbData);
+        setLiveLeaderboard(lbData || []);
       }
 
       // Fetch Tasks
@@ -373,12 +389,58 @@ const App: React.FC = () => {
     }
   };
 
+  const initUser = async () => {
+    const tgUser = TelegramService.getUser();
+    if (!tgUser || !tgUser.id || isPreviewMode) {
+      setIsInitializing(false);
+      return;
+    }
+
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const startParam = TelegramService.getStartParam();
+      
+      const response = await fetchWithTimeout(`${apiUrl}/api/init_user`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...tgUser,
+          inviter_id: startParam
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setUsers(prev => {
+           const exists = prev.some(u => u.id === data.id);
+           let updated;
+           if (exists) {
+             updated = prev.map(u => u.id === data.id ? { ...u, ...data } : u);
+           } else {
+             updated = [...prev, data];
+           }
+           saveUsers(updated);
+           return updated;
+        });
+      }
+    } catch (e) {
+      console.error('User initialization failed:', e);
+    } finally {
+      setIsInitializing(false);
+    }
+  };
+
   useEffect(() => {
     if (initialFetchDone.current) return;
     initialFetchDone.current = true;
 
-    syncSecurity();
-    fetchLiveStats(true);
+    const startApp = async () => {
+      await initUser();
+      syncSecurity();
+      fetchLiveStats(true);
+    };
+    
+    startApp();
     
     const intervalId = setInterval(() => {
       if (document.visibilityState === 'visible') {
@@ -561,7 +623,12 @@ const App: React.FC = () => {
         })
       });
       
-      const data = await response.json().catch(() => ({}));
+      let data: any = {};
+      try {
+        data = await response.json();
+      } catch (e) {
+        console.warn('Failed to parse bonus response as JSON');
+      }
       
       if (!response.ok || !data.success) {
         throw new Error(data.message || 'Failed to claim bonus');
@@ -586,14 +653,14 @@ const App: React.FC = () => {
       console.error('Failed to claim bonus on server:', error);
       
       // Fallback for preview mode if backend is unreachable
-      if (isPreviewMode && (error.message === 'Failed to fetch' || error.name === 'TypeError')) {
+      if (isPreviewMode && (error.message === 'Failed to fetch' || error.name === 'TypeError' || error.message?.includes('network'))) {
         // Simulate success locally for preview stability
         const now = new Date().toISOString();
         setUsers(prevUsers => {
           const updated = prevUsers.map((u) => u.id === currentUser.id ? { 
             ...u, 
-            balanceRiyal: u.balanceRiyal + 1, 
-            totalEarningsRiyal: u.totalEarningsRiyal + 1, 
+            balanceRiyal: (u.balanceRiyal || 0) + 1, 
+            totalEarningsRiyal: (u.totalEarningsRiyal || 0) + 1, 
             dailyBonusLastClaim: now
           } : u);
           saveUsers(updated);
@@ -651,9 +718,34 @@ const App: React.FC = () => {
     }
   };
 
-  const handleAdminAction = async (id: string, type: 'submission' | 'withdrawal', status: any) => {
+  const handleAdminAction = async (id: string, type: 'submission' | 'withdrawal', status: any): Promise<void> => {
     if (!isAdmin || !currentUser?.id) return;
     
+    // Special case for broadcast
+    if (id === 'broadcast') {
+      try {
+        const apiUrl = import.meta.env.VITE_API_URL || '';
+        const res = await fetch(`${apiUrl}/api/admin/broadcast`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            admin_id: currentUser.id,
+            message: status // status is the message in this case
+          })
+        });
+        if (res.ok) {
+          TelegramService.showAlert('Broadcast sent!');
+        } else {
+          const data = await res.json();
+          TelegramService.showAlert(data.message || 'Broadcast failed');
+        }
+      } catch (e) {
+        console.error('Broadcast error:', e);
+        TelegramService.showAlert('Broadcast failed');
+      }
+      return;
+    }
+
     if (type === 'withdrawal') {
       try {
         const apiUrl = import.meta.env.VITE_API_URL || '';
@@ -693,13 +785,33 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUpdateUserBalance = (userId: number, amount: number, currency: 'SAR' | 'USDT') => {
+  const handleUpdateUserBalance = async (userId: number, amount: number, currency: 'SAR' | 'USDT', type: 'ADJUSTMENT' = 'ADJUSTMENT', description: string = 'Admin Adjustment'): Promise<void> => {
     if (!isAdmin) return;
-    setUsers(prevUsers => {
-      const updated = prevUsers.map(u => u.id === userId ? { ...u, balanceRiyal: currency === 'SAR' ? u.balanceRiyal + amount : u.balanceRiyal, balanceCrypto: currency === 'USDT' ? u.balanceCrypto + amount : u.balanceCrypto } : u);
-      saveUsers(updated);
-      return updated;
-    });
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/admin/update_balance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admin_id: currentUser.id,
+          user_id: userId,
+          amount,
+          currency,
+          type,
+          description
+        })
+      });
+      if (res.ok) {
+        setUsers(prevUsers => {
+          const updated = prevUsers.map(u => u.id === userId ? { ...u, balanceRiyal: currency === 'SAR' ? (u.balanceRiyal || 0) + amount : u.balanceRiyal, balanceCrypto: currency === 'USDT' ? (u.balanceCrypto || 0) + amount : u.balanceCrypto } : u);
+          saveUsers(updated);
+          return updated;
+        });
+        TelegramService.showAlert('Balance Updated!');
+      }
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleViolation = () => {
@@ -708,7 +820,7 @@ const App: React.FC = () => {
     setUsers(prevUsers => {
       const updated = prevUsers.map((u) => {
         if (u.id === currentUser.id) {
-          const warningCount = u.warningCount + 1;
+          const warningCount = (u.warningCount || 0) + 1;
           return { ...u, warningCount, isBanned: warningCount >= 3 };
         }
         return u;
@@ -822,7 +934,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleApproveTask = async (taskId: string, isVideo: boolean) => {
+  const handleApproveTask = async (taskId: string, isVideo: boolean): Promise<void> => {
     if (!currentUser?.id) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
@@ -846,7 +958,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleRejectTask = async (taskId: string, isVideo: boolean) => {
+  const handleRejectTask = async (taskId: string, isVideo: boolean): Promise<void> => {
     if (!currentUser?.id) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
@@ -867,7 +979,7 @@ const App: React.FC = () => {
           user_id: task.ownerId,
           amount: totalRefund,
           currency: 'SAR',
-          type: 'EARNING',
+          type: 'REFUND',
           description: `Refund: Rejected Campaign (${task.title})`
         })
       });
@@ -910,7 +1022,7 @@ const App: React.FC = () => {
     }
   };
 
-  const handleResetDevice = async (userId: number) => {
+  const handleResetDevice = async (userId: number): Promise<void> => {
     if (!currentUser?.id) return;
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
@@ -935,17 +1047,73 @@ const App: React.FC = () => {
     }
   };
 
+  const handleUpdateProfile = async (fullName: string) => {
+    if (!currentUser?.id) return;
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/update_profile`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: currentUser.id,
+          fullName: fullName
+        })
+      });
+      if (res.ok) {
+        setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, fullName, isRegistered: true } : u));
+        TelegramService.showAlert('Profile updated!');
+      }
+    } catch (e) {
+      console.error('Profile update failed:', e);
+    }
+  };
+
+  // Removed Registration Screen Component as per request for 100% automatic flow
+
+
   // Removed redundant isSuperAdmin definition as it's now at the top
 
-  if (currentUser.isBanned) return <div className="min-h-screen bg-slate-900 flex items-center justify-center p-10 text-center font-bold text-red-500 uppercase tracking-widest">Account Banned</div>;
+  if (isInitializing) return (
+    <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-10 text-center space-y-6">
+      <motion.div 
+        animate={{ rotate: 360 }}
+        transition={{ repeat: Infinity, duration: 1, ease: "linear" }}
+        className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full shadow-[0_0_20px_rgba(0,136,204,0.3)]" 
+      />
+      <motion.p 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: [0.4, 1, 0.4] }}
+        transition={{ repeat: Infinity, duration: 2 }}
+        className="text-slate-400 font-black uppercase tracking-[0.3em] text-[10px]"
+      >
+        Initializing Secure Session...
+      </motion.p>
+    </div>
+  );
+
+  if (currentUser.isBanned) return (
+    <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-10 text-center">
+      <div className="glass-card p-8 border-red-500/30">
+        <h2 className="text-2xl font-black uppercase text-red-500 tracking-widest">Account Banned</h2>
+        <p className="text-slate-400 mt-2 text-sm">Your account has been suspended for security violations.</p>
+      </div>
+    </div>
+  );
+
   if (isSecurityBlocked) return (
-    <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-10 text-center space-y-6">
-      <div className="text-6xl">❌</div>
+    <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-10 text-center space-y-6">
+      <motion.div 
+        initial={{ scale: 0 }}
+        animate={{ scale: 1 }}
+        className="text-6xl"
+      >
+        ❌
+      </motion.div>
       <h2 className="text-2xl font-black uppercase text-red-500">Multiple Accounts Detected</h2>
       <p className="text-slate-400 text-sm leading-relaxed">
         To prevent fraud, you can only use one Telegram account per device on this platform.
       </p>
-      <div className="bg-slate-800 p-4 rounded-2xl border border-slate-700 w-full">
+      <div className="glass-card-dark p-4 w-full">
         <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Security Details</p>
         <p className="text-[10px] text-slate-400 font-mono break-all">{securityError}</p>
       </div>
@@ -973,20 +1141,32 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen pb-32 max-w-md mx-auto relative bg-slate-900 shadow-2xl overflow-x-hidden pt-12">
+    <div className="min-h-screen pb-32 max-w-md mx-auto relative bg-[#0f172a] shadow-2xl overflow-x-hidden pt-12">
       <BannerAd id="header-ad-container" script={maintenance.headerAdScript} />
       
-      {executionTask && <ActiveTask task={executionTask} onClaim={handleClaimExecution} onCancel={handleCancelExecution} isPaused={isPaused} onFocusSignal={(lost) => lost ? handleViolation() : setIsPaused(false)} />}
+      {executionTask && <ActiveTask task={executionTask} onClaim={handleClaimExecution} onCancel={handleCancelExecution} isPaused={isPaused} onFocusSignal={(lost, isManual) => lost ? (isManual ? setIsPaused(true) : handleViolation()) : setIsPaused(false)} />}
       
-      {currentTab === 'home' && (
-        <ErrorBoundary>
-          <Home user={currentUser} onClaimBonus={handleClaimBonus} leaderboard={leaderboard} userRank={liveRank ?? userRank} onStartBoost={handleStartBoost} isSyncing={isSyncing} onRefresh={() => fetchLiveStats()} currencyInfo={currencyInfo} maintenanceSettings={maintenance} />
-        </ErrorBoundary>
-      )}
-      {currentTab === 'tasks' && <TasksHub user={currentUser} tasks={tasks} adTasks={adTasks} submissions={submissions} adViews={adViews} onStartTask={handleStartExecution} onStartAd={handleStartExecution} onAddTask={handleAddTask} onAddAdTask={handleAddAdTask} isMaintenanceVideos={maintenance.videoTasks && !isAdmin} isMaintenanceAds={maintenance.adTasks && !isAdmin} isMaintenancePromote={maintenance.promote && !isAdmin} onGoToDeposit={() => setCurrentTab('wallet')} isSyncing={isSyncing} />}
-      {currentTab === 'wallet' && <Wallet user={currentUser} withdrawals={withdrawals} transactions={transactions} onWithdraw={handleWithdrawRequest} isMaintenance={maintenance.wallet && !isAdmin} onUpdatePreference={(p) => setUsers(users.map(u => u.id === currentUser.id ? {...u, ...p} : u))} maintenanceSettings={maintenance} currencyInfo={currencyInfo} />}
-      {currentTab === 'profile' && <Profile user={currentUser} maintenanceSettings={maintenance} onNavigate={setCurrentTab} />}
-      {currentTab === 'admin' && (isSuperAdmin || isPreviewMode) && <Admin submissions={submissions} withdrawals={withdrawals} tasks={tasks} adTasks={adTasks} users={users} currentUser={currentUser} maintenanceSettings={maintenance} onUpdateMaintenance={handleUpdateMaintenance} onAction={handleAdminAction} onAddTask={handleAddTask} onAddAdTask={handleAddAdTask} onDeleteTask={handleDeleteTask} onDeleteAdTask={handleDeleteAdTask} onUnban={(uid) => setUsers(users.map(u => u.id === uid ? { ...u, isBanned: false, warningCount: 0 } : u))} onUpdateBalance={handleUpdateUserBalance} onResetLeaderboard={() => setUsers(users.map(u => ({...u, totalEarningsRiyal: 0})))} onApproveTask={handleApproveTask} onRejectTask={handleRejectTask} onResetDevice={handleResetDevice} />}
+      <main className="relative z-10">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentTab}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.3, ease: "easeOut" }}
+          >
+            {currentTab === 'home' && (
+              <ErrorBoundary>
+                <Home user={currentUser} onClaimBonus={handleClaimBonus} leaderboard={leaderboard} userRank={liveRank ?? userRank} onStartBoost={handleStartBoost} isSyncing={isSyncing} onRefresh={() => fetchLiveStats()} currencyInfo={currencyInfo} maintenanceSettings={maintenance} />
+              </ErrorBoundary>
+            )}
+            {currentTab === 'tasks' && <TasksHub user={currentUser} tasks={tasks} adTasks={adTasks} submissions={submissions} adViews={adViews} onStartTask={handleStartExecution} onStartAd={handleStartExecution} onAddTask={handleAddTask} onAddAdTask={handleAddAdTask} isMaintenanceVideos={maintenance.videoTasks && !isAdmin} isMaintenanceAds={maintenance.adTasks && !isAdmin} isMaintenancePromote={maintenance.promote && !isAdmin} onGoToDeposit={() => setCurrentTab('wallet')} isSyncing={isSyncing} />}
+            {currentTab === 'wallet' && <Wallet user={currentUser} withdrawals={withdrawals} transactions={transactions} onWithdraw={handleWithdrawRequest} isMaintenance={maintenance.wallet && !isAdmin} onUpdatePreference={(p) => setUsers(users.map(u => u.id === currentUser.id ? {...u, ...p} : u))} maintenanceSettings={maintenance} currencyInfo={currencyInfo} />}
+            {currentTab === 'profile' && <Profile user={currentUser} maintenanceSettings={maintenance} onNavigate={setCurrentTab} onUpdateProfile={handleUpdateProfile} />}
+            {currentTab === 'admin' && (isSuperAdmin || isPreviewMode) && <Admin submissions={submissions} withdrawals={withdrawals} tasks={tasks} adTasks={adTasks} users={users} currentUser={currentUser} maintenanceSettings={maintenance} onUpdateMaintenance={handleUpdateMaintenance} onAction={handleAdminAction} onAddTask={handleAddTask} onAddAdTask={handleAddAdTask} onDeleteTask={handleDeleteTask} onDeleteAdTask={handleDeleteAdTask} onUnban={(uid) => setUsers(users.map(u => u.id === uid ? { ...u, isBanned: false, warningCount: 0 } : u))} onUpdateBalance={handleUpdateUserBalance} onResetLeaderboard={() => setUsers(users.map(u => ({...u, totalEarningsRiyal: 0})))} onApproveTask={handleApproveTask} onRejectTask={handleRejectTask} onResetDevice={handleResetDevice} />}
+          </motion.div>
+        </AnimatePresence>
+      </main>
       
       <BannerAd id="footer-ad-container" script={maintenance.footerAdScript} />
       

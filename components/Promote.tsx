@@ -181,11 +181,18 @@ const Promote: React.FC<PromoteProps> = ({ user, tasks, adTasks, submissions, ad
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] text-slate-500 font-bold uppercase ml-1">Payment Method</label>
+            <label className="text-[10px] text-slate-500 font-bold uppercase ml-1">Payment Source</label>
             <div className="flex gap-2">
-              <button type="button" onClick={() => setPaymentCurrency('SAR')} className={`flex-1 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${paymentCurrency === 'SAR' ? 'border-blue-500 text-blue-400 bg-blue-500/10' : 'border-slate-700 text-slate-500'}`}>SAR Balance</button>
-              <button type="button" onClick={() => setPaymentCurrency('USDT')} className={`flex-1 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${paymentCurrency === 'USDT' ? 'border-green-500 text-green-400 bg-green-500/10' : 'border-slate-700 text-slate-500'}`}>USDT Balance</button>
+              <button type="button" onClick={() => setPaymentCurrency('SAR')} className={`flex-1 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${paymentCurrency === 'SAR' ? 'border-blue-500 text-blue-400 bg-blue-500/10' : 'border-slate-700 text-slate-500'}`}>
+                SAR (Earnings/Deposit)
+              </button>
+              <button type="button" onClick={() => setPaymentCurrency('USDT')} className={`flex-1 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all ${paymentCurrency === 'USDT' ? 'border-green-500 text-green-400 bg-green-500/10' : 'border-slate-700 text-slate-500'}`}>
+                USDT (Earnings/Deposit)
+              </button>
             </div>
+            <p className="text-[9px] text-slate-500 italic px-1">
+              💡 You can use your earned rewards or deposited funds to pay for campaigns.
+            </p>
           </div>
 
           <div className="pt-4 border-t border-slate-700 flex justify-between items-center">

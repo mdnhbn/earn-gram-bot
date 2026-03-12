@@ -1,6 +1,8 @@
 
 import React from 'react';
+import { motion } from 'motion/react';
 import { TelegramService } from '../services/telegram';
+import { Home, Target, Wallet, User as UserIcon, Settings } from 'lucide-react';
 
 interface NavigationProps {
   currentTab: string;
@@ -9,25 +11,20 @@ interface NavigationProps {
 }
 
 const Navigation: React.FC<NavigationProps> = ({ currentTab, setTab, isAdmin }) => {
-  const tgUser = TelegramService.getUser();
-  const isPreviewMode = !tgUser.id || tgUser.id === 'demo_id' || tgUser.id === 12345678;
-
   const tabs = [
-    { id: 'home', label: 'Home', icon: '🏠' },
-    { id: 'tasks', label: 'Tasks', icon: '🎯' },
-    { id: 'wallet', label: 'Wallet', icon: '💰' },
-    { id: 'profile', label: 'Profile', icon: '👤' },
+    { id: 'home', label: 'Home', icon: <Home size={20} /> },
+    { id: 'tasks', label: 'Tasks', icon: <Target size={20} /> },
+    { id: 'wallet', label: 'Wallet', icon: <Wallet size={20} /> },
+    { id: 'profile', label: 'Profile', icon: <UserIcon size={20} /> },
   ];
 
-  const isSuperAdmin = tgUser.id === 929198867;
-
-  if (isSuperAdmin || isPreviewMode) {
-    tabs.push({ id: 'admin', label: 'Admin', icon: '⚙️' });
+  if (isAdmin) {
+    tabs.push({ id: 'admin', label: 'Admin', icon: <Settings size={20} /> });
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-slate-800/95 backdrop-blur-md border-t border-slate-700/50 pb-safe z-50 shadow-[0_-10px_20px_rgba(0,0,0,0.3)]">
-      <div className="flex justify-around items-center h-20 px-4 max-w-md mx-auto">
+    <nav className="nav-floating">
+      <div className="flex justify-between items-center w-full">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -35,17 +32,21 @@ const Navigation: React.FC<NavigationProps> = ({ currentTab, setTab, isAdmin }) 
               TelegramService.haptic('light');
               setTab(tab.id);
             }}
-            className={`flex flex-col items-center justify-center w-full h-full transition-all duration-300 relative ${
-              currentTab === tab.id ? 'text-blue-400' : 'text-slate-500'
+            className={`flex flex-col items-center justify-center relative px-3 py-1 transition-all duration-300 ${
+              currentTab === tab.id ? 'text-primary' : 'text-slate-400 opacity-60'
             }`}
           >
             {currentTab === tab.id && (
-              <span className="absolute top-2 w-1 h-1 bg-blue-400 rounded-full animate-pulse" />
+              <motion.div
+                layoutId="nav-active"
+                className="absolute inset-0 bg-white/10 rounded-full -z-10"
+                transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+              />
             )}
-            <span className={`text-2xl mb-1.5 transition-transform duration-300 ${currentTab === tab.id ? 'scale-110 -translate-y-1' : ''}`}>
+            <div className={`transition-transform duration-300 ${currentTab === tab.id ? 'scale-110 -translate-y-0.5' : ''}`}>
               {tab.icon}
-            </span>
-            <span className={`text-[9px] font-black uppercase tracking-[0.1em] transition-all duration-300 ${currentTab === tab.id ? 'opacity-100' : 'opacity-60'}`}>
+            </div>
+            <span className={`text-[8px] font-black uppercase tracking-widest mt-1 transition-all duration-300 ${currentTab === tab.id ? 'opacity-100' : 'opacity-0 h-0 overflow-hidden'}`}>
               {tab.label}
             </span>
           </button>
