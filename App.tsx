@@ -610,16 +610,19 @@ const App: React.FC = () => {
     console.clear();
   };
 
-  const handleClaimBonus = async () => {
-    if (!currentUser?.id) return;
+  const handleClaimBonus = async (userId?: number, initData?: string) => {
+    const id = userId || currentUser?.id;
+    const dataStr = initData || TelegramService.getInitData();
+    if (!id) return;
+    
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
       const response = await fetchWithTimeout(`${apiUrl}/api/daily_bonus`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: currentUser.id,
-          initData: TelegramService.getInitData()
+          user_id: id,
+          initData: dataStr
         })
       });
       
@@ -652,8 +655,13 @@ const App: React.FC = () => {
     } catch (error: any) {
       console.error('Failed to claim bonus on server:', error);
       
+      let errorMessage = error.message || 'Failed to claim bonus';
+      if (error.name === 'AbortError' || error.message?.includes('timeout') || error.message?.includes('fetch')) {
+        errorMessage = 'Connection error. Please check your internet and try again.';
+      }
+      
       // Fallback for preview mode if backend is unreachable
-      if (isPreviewMode && (error.message === 'Failed to fetch' || error.name === 'TypeError' || error.message?.includes('network'))) {
+      if (isPreviewMode && (errorMessage.includes('Connection error') || errorMessage.includes('Failed to fetch'))) {
         // Simulate success locally for preview stability
         const now = new Date().toISOString();
         setUsers(prevUsers => {
@@ -671,7 +679,7 @@ const App: React.FC = () => {
         return;
       }
       
-      throw error; // Let Home.tsx handle the error message
+      throw new Error(errorMessage);
     }
   };
 

@@ -7,7 +7,7 @@ import { Trophy, Zap, RefreshCw, Clock, ChevronRight } from 'lucide-react';
 
 interface HomeProps {
   user: User;
-  onClaimBonus: () => void;
+  onClaimBonus: (userId: number, initData: string) => Promise<void>;
   leaderboard: User[];
   userRank: number;
   onStartBoost: (url: string, time: number) => void;
@@ -91,7 +91,7 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
     setIsClaiming(true);
     TelegramService.haptic('medium');
     try {
-      await onClaimBonus();
+      await onClaimBonus(user.id, TelegramService.getInitData());
     } catch (err: any) {
       console.error('Claim error:', err);
       TelegramService.showAlert(err.message || 'Server busy, try again later');

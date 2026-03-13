@@ -641,11 +641,30 @@ def claim_daily_bonus(user_id):
             except:
                 pass
         
-        process_reward(user_id, reward, "Daily Bonus")
+        # Update balance and total earnings
+        users_col.update_one(
+            {"id": int(user_id)},
+            {
+                "$inc": {
+                    "balanceRiyal": reward,
+                    "totalEarningsRiyal": reward
+                },
+                "$set": {
+                    "dailyBonusLastClaim": now
+                }
+            }
+        )
         
-        # Update last claim time
-        users_col.update_one({"id": user_id}, {"$set": {"dailyBonusLastClaim": now}})
+        # Log transaction
+        transactions_col.insert_one({
+            "userId": int(user_id),
+            "amount": reward,
+            "type": "EARNING",
+            "description": "Daily Bonus",
+            "timestamp": now
+        })
         
+        logger.info(f"User {user_id} claimed daily bonus of {reward} SAR")
         return True, f"Daily Bonus Claimed! +{reward:.2f} SAR"
     except Exception as e:
         logger.error(f"Error claiming daily bonus for user {user_id}: {e}")
