@@ -102,7 +102,7 @@ const AdTasks: React.FC<AdTasksProps> = ({ tasks, views, currentUser, onStartAd,
         </motion.div>
 
         {availableAds.length === 0 ? (
-          <div className="glass-card-dark rounded-3xl border-dashed border-white/5 p-12 text-center space-y-4">
+          <div className="backdrop-blur-xl bg-black/20 rounded-3xl border-dashed border-white/5 p-12 text-center space-y-4">
             <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto">
               <Megaphone size={32} className="text-slate-600" />
             </div>
@@ -133,11 +133,11 @@ const AdTasks: React.FC<AdTasksProps> = ({ tasks, views, currentUser, onStartAd,
                       key={task.id} 
                       variants={item}
                       whileHover={{ scale: 1.01 }}
-                      className={`glass-card p-4 rounded-2xl border-white/5 flex flex-col gap-4 group transition-all ${completed ? 'opacity-60 grayscale-[0.5]' : ''}`}
+                      className={`bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 rounded-2xl border-white/5 flex flex-col gap-4 group transition-all ${completed ? 'opacity-60 grayscale-[0.5]' : ''}`}
                     >
                       <div className="flex justify-between items-start">
                         <div className="flex gap-4">
-                          <div className="w-12 h-12 glass-card-dark rounded-xl flex items-center justify-center border-white/5 shadow-inner group-hover:border-primary/30 transition-colors">
+                          <div className="w-12 h-12 backdrop-blur-xl bg-black/20 rounded-xl flex items-center justify-center border-white/5 shadow-inner group-hover:border-primary/30 transition-colors">
                             {getNetworkIcon(task.networkName || 'Custom')}
                           </div>
                           <div>

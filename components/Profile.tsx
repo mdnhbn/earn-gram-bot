@@ -178,7 +178,7 @@ const Profile: React.FC<ProfileProps> = ({ user, maintenanceSettings, onNavigate
 
       {/* Stats Grid */}
       <motion.div variants={itemVariants} className="grid grid-cols-2 gap-4">
-        <div className="glass-card p-5 space-y-2 relative overflow-hidden group">
+        <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-5 space-y-2 relative overflow-hidden group">
           <div className="absolute -right-2 -top-2 opacity-5 group-hover:opacity-10 transition-opacity">
             <Trophy size={64} />
           </div>
@@ -189,7 +189,7 @@ const Profile: React.FC<ProfileProps> = ({ user, maintenanceSettings, onNavigate
           <p className="text-3xl font-black text-white">{user?.totalTasksCompleted || 0}</p>
         </div>
         
-        <div className="glass-card p-5 space-y-2 relative overflow-hidden group">
+        <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-5 space-y-2 relative overflow-hidden group">
           <div className="absolute -right-2 -top-2 opacity-5 group-hover:opacity-10 transition-opacity">
             <ShieldCheck size={64} />
           </div>
@@ -205,7 +205,7 @@ const Profile: React.FC<ProfileProps> = ({ user, maintenanceSettings, onNavigate
       </motion.div>
 
       {/* Referral System */}
-      <motion.div variants={itemVariants} className="glass-card p-6 space-y-6 relative overflow-hidden">
+      <motion.div variants={itemVariants} className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-6 space-y-6 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-primary/5 blur-3xl rounded-full -mr-16 -mt-16" />
         
         <div className="flex justify-between items-center relative z-10">
@@ -274,7 +274,7 @@ const Profile: React.FC<ProfileProps> = ({ user, maintenanceSettings, onNavigate
         <motion.button 
           whileHover={{ x: 4 }}
           onClick={handleSupport}
-          className="w-full glass-card hover:bg-white/5 px-6 py-4 rounded-2xl flex justify-between items-center transition-all group"
+          className="w-full bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl hover:bg-white/5 px-6 py-4 rounded-2xl flex justify-between items-center transition-all group"
         >
           <div className="flex items-center gap-4">
             <div className="p-2 rounded-xl bg-blue-500/10 text-blue-400 group-hover:scale-110 transition-transform">
@@ -288,7 +288,7 @@ const Profile: React.FC<ProfileProps> = ({ user, maintenanceSettings, onNavigate
         <motion.button 
           whileHover={{ x: 4 }}
           onClick={handleTOS}
-          className="w-full glass-card hover:bg-white/5 px-6 py-4 rounded-2xl flex justify-between items-center transition-all group"
+          className="w-full bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl hover:bg-white/5 px-6 py-4 rounded-2xl flex justify-between items-center transition-all group"
         >
           <div className="flex items-center gap-4">
             <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 group-hover:scale-110 transition-transform">
@@ -334,11 +334,6 @@ const Profile: React.FC<ProfileProps> = ({ user, maintenanceSettings, onNavigate
         )}
       </motion.div>
     </motion.div>
-  );
-};
-
-export default Profile;
-
   );
 };
 

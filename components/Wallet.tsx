@@ -17,7 +17,9 @@ import {
   Coins,
   ChevronRight,
   Info,
-  Loader2
+  Loader2,
+  Zap,
+  Rocket
 } from 'lucide-react';
 
 interface WalletProps {
@@ -149,7 +151,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
           <h2 className="text-2xl font-black tracking-tight text-white">Wallet</h2>
         </motion.div>
         
-        <div className="glass-card-dark p-1 rounded-xl flex border border-white/5">
+        <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-1 rounded-xl flex">
           {tabs.map(tab => (
             <button 
               key={tab.id}
@@ -186,7 +188,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
             exit={{ opacity: 0, y: -20 }}
             className="space-y-6"
           >
-            <div className="glass-card-dark p-1 flex border border-white/5">
+            <div className="backdrop-blur-xl bg-black/20 p-1 flex border border-white/5">
               <button 
                 onClick={() => setMode('Local')} 
                 className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative z-10 ${
@@ -223,7 +225,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
               </button>
             </div>
 
-            <div className="glass-card p-8 rounded-[2.5rem] border-white/5 space-y-8 shadow-2xl relative overflow-hidden">
+            <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-8 rounded-[2.5rem] border-white/5 space-y-8 shadow-2xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-32 h-32 bg-primary/10 blur-3xl -mr-16 -mt-16 rounded-full" />
               
               <div className="space-y-4 relative z-10">
@@ -238,7 +240,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
                           className={`px-3 py-1 rounded-full text-[9px] font-black tracking-tighter transition-all border ${
                             selectedCurrency === curr 
                             ? 'bg-primary border-primary-light text-white' 
-                            : 'glass-card-dark border-white/5 text-slate-500'
+                            : 'bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl text-slate-500'
                           }`}
                         >
                           {curr}
@@ -248,7 +250,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
                   )}
                 </div>
                 
-                <div className="glass-card-dark p-8 rounded-3xl border-white/5 flex flex-col items-center justify-center text-center shadow-inner">
+                <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-8 rounded-3xl flex flex-col items-center justify-center text-center shadow-inner">
                   <motion.h2 
                     key={mode + selectedCurrency}
                     initial={{ scale: 0.9, opacity: 0 }}
@@ -273,7 +275,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
                       value={amountInput} 
                       onChange={e => setAmountInput(e.target.value)} 
                       placeholder={`0.00 ${mode === 'Local' ? selectedCurrency : 'USDT'}`} 
-                      className="w-full glass-card-dark border-white/10 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-primary/50 transition-colors text-white placeholder:text-slate-600" 
+                      className="w-full bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-primary/50 transition-colors text-white placeholder:text-slate-600" 
                       required 
                     />
                     <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-500 uppercase">
@@ -290,7 +292,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
                     value={address} 
                     onChange={e => setAddress(e.target.value)} 
                     placeholder={mode === 'Local' ? 'Enter receiving details' : 'Paste TRC20 address'} 
-                    className="w-full glass-card-dark border-white/10 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-primary/50 transition-colors text-white placeholder:text-slate-600" 
+                    className="w-full backdrop-blur-xl bg-black/20 border-white/10 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-primary/50 transition-colors text-white placeholder:text-slate-600" 
                     required 
                   />
                 </div>
@@ -320,12 +322,12 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
                 
                 <div className="space-y-3">
                   {withdrawals.length === 0 ? (
-                    <div className="glass-card-dark rounded-2xl border-dashed border-white/5 p-8 text-center">
+                    <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl rounded-2xl border-dashed p-8 text-center">
                       <p className="text-[10px] text-slate-500 font-medium italic">No withdrawal records found.</p>
                     </div>
                   ) : (
                     withdrawals.slice(0, 3).map((w) => (
-                      <div key={w.id} className="glass-card-dark p-4 rounded-2xl border-white/5 flex justify-between items-center group hover:border-white/10 transition-colors">
+                      <div key={w.id} className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 rounded-2xl flex justify-between items-center group hover:border-white/10 transition-colors">
                         <div className="space-y-1">
                           <p className="text-xs font-bold text-white">{w.method}</p>
                           <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">
@@ -361,7 +363,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
             exit={{ opacity: 0, y: -20 }}
             className="space-y-6"
           >
-            <div className="glass-card-dark p-1 flex border border-white/5">
+            <div className="backdrop-blur-xl bg-black/20 p-1 flex border border-white/5">
               <button 
                 onClick={() => setDepositType('auto')} 
                 className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all relative z-10 ${
@@ -398,7 +400,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
               </button>
             </div>
 
-            <div className="glass-card p-8 rounded-[2.5rem] border-white/5 space-y-8 shadow-2xl relative overflow-hidden">
+            <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-8 rounded-[2.5rem] border-white/5 space-y-8 shadow-2xl relative overflow-hidden">
               <header className="text-center space-y-2 relative z-10">
                 <h3 className="text-xl font-black uppercase tracking-tight text-white">{depositType === 'auto' ? 'Automatic Deposit' : 'Manual Deposit'}</h3>
                 <p className="text-[11px] text-slate-400 font-medium px-4">
@@ -409,7 +411,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
               </header>
 
               {depositType === 'auto' && (
-                <div className="glass-card-dark p-1 rounded-2xl flex border border-white/5 mb-4 relative z-10">
+                <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-1 rounded-2xl flex mb-4 relative z-10">
                   <button onClick={() => setMode('Local')} className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase tracking-widest relative z-10 ${mode === 'Local' ? 'text-white' : 'text-slate-500'}`}>
                     {mode === 'Local' && <motion.div layoutId="dep-mode-active" className="absolute inset-0 bg-primary rounded-xl -z-10" />}
                     Local (bKash/STC)
@@ -422,7 +424,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
               )}
 
               <div className="space-y-4 relative z-10">
-                <div className="p-6 glass-card-dark rounded-3xl border-white/5 space-y-4 shadow-inner">
+                <div className="p-6 bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl rounded-3xl space-y-4 shadow-inner">
                   <p className="text-[9px] text-slate-500 font-black uppercase tracking-[0.2em]">
                     {mode === 'USDT' ? 'Crypto Wallet (USDT/TRX)' : 'Local Payment Details'}
                   </p>
@@ -441,7 +443,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
                   ) : (
                     maintenanceSettings.paymentDetails.bankInfo ? (
                       <div className="space-y-4">
-                        <pre className="text-xs text-slate-300 font-sans whitespace-pre-wrap leading-relaxed bg-black/20 p-4 rounded-xl border border-white/5">{maintenanceSettings.paymentDetails.bankInfo}</pre>
+                        <pre className="text-xs text-slate-300 font-sans whitespace-pre-wrap leading-relaxed bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 rounded-xl">{maintenanceSettings.paymentDetails.bankInfo}</pre>
                         <button onClick={() => copyToClipboard(maintenanceSettings.paymentDetails.bankInfo)} className="w-full bg-primary/10 text-primary-light py-3 rounded-xl text-[9px] font-black uppercase tracking-widest border border-primary/20 flex items-center justify-center gap-2">
                           <Copy size={14} />
                           <span>Copy Payment Info</span>
@@ -465,7 +467,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
                         placeholder={`0.00 ${mode === 'Local' ? selectedCurrency : 'USDT'}`} 
                         value={amountInput}
                         onChange={e => setAmountInput(e.target.value)}
-                        className="w-full glass-card-dark border-white/10 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-primary/50 text-white placeholder:text-slate-600" 
+                        className="w-full backdrop-blur-xl bg-black/20 border-white/10 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-primary/50 text-white placeholder:text-slate-600" 
                         required 
                       />
                     </div>
@@ -477,7 +479,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
                           placeholder="Your payment number" 
                           value={senderNumber}
                           onChange={e => setSenderNumber(e.target.value)}
-                          className="w-full glass-card-dark border-white/10 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-primary/50 text-white placeholder:text-slate-600" 
+                          className="w-full bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-primary/50 text-white placeholder:text-slate-600" 
                           required 
                         />
                       </div>
@@ -489,7 +491,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
                         placeholder="Paste TxID here" 
                         value={txId}
                         onChange={e => setTxId(e.target.value)}
-                        className="w-full glass-card-dark border-white/10 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-primary/50 text-white placeholder:text-slate-600" 
+                        className="w-full backdrop-blur-xl bg-black/20 border-white/10 rounded-2xl px-5 py-4 text-sm font-bold outline-none focus:border-primary/50 text-white placeholder:text-slate-600" 
                         required 
                       />
                     </div>
@@ -523,7 +525,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
                         {maintenanceSettings.depositInstructions.split('\n').map((line, i) => (
                           <p key={i} className="mb-2 last:mb-0">{line}</p>
                         ))}
-                        <div className="mt-6 p-4 glass-card-dark rounded-2xl border-white/5 flex justify-between items-center">
+                        <div className="mt-6 p-4 bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl rounded-2xl flex justify-between items-center">
                           <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">Your UserID</span>
                           <span className="text-white font-black tracking-[0.2em]">{user.id}</span>
                         </div>
@@ -560,7 +562,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
             </div>
             
             {transactions.filter(tx => tx.userId === user.id).length === 0 ? (
-              <div className="glass-card-dark rounded-3xl border-dashed border-white/5 p-12 text-center space-y-4">
+              <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl rounded-3xl border-dashed p-12 text-center space-y-4">
                 <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto">
                   <History size={32} className="text-slate-600" />
                 </div>
@@ -576,7 +578,7 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     key={tx.id} 
-                    className="glass-card p-4 rounded-2xl border-white/5 flex justify-between items-center group hover:border-white/10 transition-all"
+                    className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 rounded-2xl flex justify-between items-center group hover:border-white/10 transition-all"
                   >
                     <div className="flex items-center gap-4">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center border ${
@@ -628,11 +630,6 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
         )}
       </AnimatePresence>
     </div>
-  );
-};
-
-export default Wallet;
-</div>
   );
 };
 

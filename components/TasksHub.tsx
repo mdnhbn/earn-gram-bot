@@ -53,7 +53,7 @@ const TasksHub: React.FC<TasksHubProps> = ({
     <div className="space-y-4">
       {/* Top Segmented Control */}
       <div className="sticky top-0 z-40 bg-[#0f172a]/80 backdrop-blur-md pt-4 pb-4 px-4 border-b border-white/5">
-        <div className="glass-card-dark p-1 flex relative">
+        <div className="backdrop-blur-xl bg-black/20 p-1 flex relative rounded-2xl border border-white/5">
           {subTabs.map((tab) => (
             <button
               key={tab.id}

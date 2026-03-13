@@ -42,7 +42,7 @@ export const AdminBroadcast: React.FC<AdminBroadcastProps> = ({ onAction }) => {
           <MessageSquare size={12} className="text-neon-blue" /> Global Broadcast
         </h3>
         
-        <div className="glass-card p-6 space-y-6">
+        <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-6 space-y-6">
           <div className="bg-neon-blue/5 border border-neon-blue/10 p-4 rounded-2xl flex items-start gap-3">
             <div className="p-2 bg-neon-blue/10 rounded-lg shrink-0">
               <Sparkles className="text-neon-blue" size={16} />

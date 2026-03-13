@@ -87,7 +87,7 @@ export const AdminTasks: React.FC<AdminTasksProps> = ({
           <Plus size={12} className="text-neon-blue" /> Mission Architect
         </h3>
         
-        <div className="glass-card p-4 space-y-4">
+        <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 space-y-4">
           <div className="flex gap-2 p-1 bg-white/5 rounded-xl">
             <button 
               onClick={() => { setActiveTab('video'); TelegramService.haptic('light'); }}
@@ -184,7 +184,7 @@ export const AdminTasks: React.FC<AdminTasksProps> = ({
         
         <div className="space-y-3">
           {[...tasks, ...adTasks].length === 0 ? (
-            <div className="glass-card p-12 text-center space-y-4">
+            <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-12 text-center space-y-4">
               <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto">
                 <BarChart3 className="text-slate-700" size={32} />
               </div>
@@ -198,7 +198,7 @@ export const AdminTasks: React.FC<AdminTasksProps> = ({
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   key={t.id} 
-                  className="glass-card p-4 flex items-center justify-between gap-4 border-l-4 border-l-neon-blue"
+                  className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 flex items-center justify-between gap-4 border-l-4 border-l-neon-blue"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">
@@ -225,7 +225,7 @@ export const AdminTasks: React.FC<AdminTasksProps> = ({
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   key={t.id} 
-                  className="glass-card p-4 flex items-center justify-between gap-4 border-l-4 border-l-emerald-green"
+                  className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 flex items-center justify-between gap-4 border-l-4 border-l-emerald-green"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1">

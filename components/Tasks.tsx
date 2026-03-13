@@ -88,7 +88,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, submissions, currentUser, onStartT
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 glass-card px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-xl flex items-center gap-2 border-primary/20"
+            className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-xl flex items-center gap-2 border-primary/20"
           >
             {isSyncingSlowly ? (
               <>
@@ -133,7 +133,7 @@ const Tasks: React.FC<TasksProps> = ({ tasks, submissions, currentUser, onStartT
         {availableTasks.length === 0 ? (
           <motion.div 
             variants={item}
-            className="glass-card-dark rounded-3xl border-dashed border-white/5 p-12 text-center space-y-4"
+            className="backdrop-blur-xl bg-black/20 rounded-3xl border-dashed border-white/5 p-12 text-center space-y-4"
           >
             <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto">
               <Video size={32} className="text-slate-600" />
@@ -154,11 +154,11 @@ const Tasks: React.FC<TasksProps> = ({ tasks, submissions, currentUser, onStartT
                 variants={item}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="glass-card p-4 rounded-2xl border-white/5 flex flex-col gap-4 group transition-all"
+                className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 rounded-2xl border-white/5 flex flex-col gap-4 group transition-all"
               >
                 <div className="flex justify-between items-start">
                   <div className="flex gap-4">
-                    <div className="w-12 h-12 glass-card-dark rounded-xl flex items-center justify-center border-white/5 shadow-inner group-hover:border-primary/30 transition-colors">
+                    <div className="w-12 h-12 backdrop-blur-xl bg-black/20 rounded-xl flex items-center justify-center border-white/5 shadow-inner group-hover:border-primary/30 transition-colors">
                       {getPlatformIcon(task.platform)}
                     </div>
                     <div>

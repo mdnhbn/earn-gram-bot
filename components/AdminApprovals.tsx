@@ -38,7 +38,7 @@ export const AdminApprovals: React.FC<AdminApprovalsProps> = ({
 
   if (pendingItems.length === 0) {
     return (
-      <div className="glass-card p-12 text-center space-y-4">
+      <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-12 text-center space-y-4">
         <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto">
           <Check className="w-8 h-8 text-slate-700 opacity-20" />
         </div>
@@ -70,7 +70,7 @@ export const AdminApprovals: React.FC<AdminApprovalsProps> = ({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.1 }}
-              className="glass-card p-5 space-y-4 border-white/5 hover:border-neon-blue/30 transition-all group"
+              className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-5 space-y-4 border-white/5 hover:border-neon-blue/30 transition-all group"
             >
               <div className="flex justify-between items-start">
                 <div className="space-y-1.5">

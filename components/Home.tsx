@@ -124,7 +124,7 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
         </motion.div>
         
         <div className="flex items-center gap-3">
-          <div className="glass-card-dark px-3 py-1.5 flex items-center gap-2">
+          <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl px-3 py-1.5 flex items-center gap-2 rounded-lg">
             <Clock size={12} className="text-primary" />
             <span className="font-mono text-primary text-[10px] font-black tracking-widest">
               {formatTime(currentTime)}
@@ -135,7 +135,7 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
               TelegramService.haptic('light');
               onRefresh?.();
             }}
-            className={`p-2 rounded-full glass-card-dark text-slate-400 hover:text-white transition-colors ${isSyncing ? 'animate-spin' : ''}`}
+            className={`p-2 rounded-full bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl text-slate-400 hover:text-white transition-colors ${isSyncing ? 'animate-spin' : ''}`}
           >
             <RefreshCw size={18} />
           </button>
@@ -179,7 +179,7 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1 }}
-          className="glass-card p-6 relative overflow-hidden group"
+          className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-6 relative overflow-hidden group rounded-2xl"
         >
           <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           <div className="relative z-10 flex justify-between items-center">
@@ -202,7 +202,7 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
-        className="glass-card p-5 flex items-center justify-between border-dashed border-white/10"
+        className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-5 flex items-center justify-between border-dashed border-white/10 rounded-2xl"
       >
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center text-accent">
@@ -235,7 +235,7 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
           </div>
         </div>
 
-        <div className="glass-card-dark overflow-hidden divide-y divide-white/5">
+        <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl overflow-hidden divide-y divide-white/5 rounded-2xl">
           {leaderboard.slice(0, 5).map((u, index) => (
             <motion.div 
               key={u.id} 
@@ -245,7 +245,7 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
               className={`p-4 flex items-center justify-between ${u.id === user.id ? 'bg-primary/10' : ''}`}
             >
               <div className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-lg glass-card flex items-center justify-center text-xs font-black">
+                <div className="w-8 h-8 rounded-lg bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl flex items-center justify-center text-xs font-black">
                   {getRankIcon(index) || <span className="text-slate-500">{index + 1}</span>}
                 </div>
                 <div>
@@ -288,8 +288,8 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
         disabled={!!boostCooldown}
         className={`w-full text-left p-6 rounded-3xl flex items-center gap-5 transition-all active:scale-[0.98] border relative overflow-hidden group ${
           boostCooldown 
-          ? 'glass-card-dark opacity-60 grayscale' 
-          : 'glass-card border-primary/20 hover:border-primary/40 shadow-lg shadow-primary/5'
+          ? 'bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl opacity-60 grayscale' 
+          : 'bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl border-primary/20 hover:border-primary/40 shadow-lg shadow-primary/5'
         }`}
       >
         <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${

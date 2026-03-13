@@ -46,7 +46,7 @@ const MaintenanceNotice: React.FC<MaintenanceNoticeProps> = ({
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.3 }}
-        className="px-6 py-2 glass-card border-amber-500/20 rounded-2xl"
+        className="px-6 py-2 bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl border-amber-500/20 rounded-2xl"
       >
         <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest">System Optimization</p>
       </motion.div>

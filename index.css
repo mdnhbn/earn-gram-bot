@@ -22,14 +22,6 @@
 }
 
 @layer components {
-  .glass-card {
-    @apply backdrop-blur-xl bg-white/10 border border-white/20 rounded-2xl shadow-xl;
-  }
-  
-  .glass-card-dark {
-    @apply backdrop-blur-xl bg-black/20 border border-white/10 rounded-2xl shadow-xl;
-  }
-
   .btn-premium {
     @apply relative overflow-hidden transition-all duration-300 active:scale-95 rounded-xl font-semibold;
     background: linear-gradient(135deg, #0088cc, #00c6ff);
@@ -64,7 +56,7 @@
   }
 
   .nav-floating {
-    @apply fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-3 glass-card-dark rounded-full z-50;
+    @apply fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-3 rounded-full z-50 backdrop-blur-xl bg-black/20 border border-white/10 shadow-xl;
     width: calc(100% - 3rem);
     max-width: 400px;
   }
@@ -83,9 +75,4 @@
   background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.05) 50%, rgba(255,255,255,0) 100%);
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
-}
-@layer components {
-  .glass-card-dark {
-    @apply bg-slate-900/80 backdrop-blur-md border border-slate-700/50 shadow-xl;
-  }
 }

@@ -76,7 +76,7 @@ export const AdminUsers: React.FC<AdminUsersProps> = ({
               <motion.div 
                 layout
                 key={u.id} 
-                className={`glass-card overflow-hidden transition-all duration-300 ${isExpanded ? 'border-neon-blue/30 ring-1 ring-neon-blue/20' : 'border-white/5'}`}
+                className={`bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl overflow-hidden transition-all duration-300 ${isExpanded ? 'border-neon-blue/30 ring-1 ring-neon-blue/20' : 'border-white/5'}`}
               >
                 <div 
                   onClick={() => { setExpandedUserId(isExpanded ? null : u.id); TelegramService.haptic('light'); }}

@@ -217,7 +217,7 @@ export const AdminSystem: React.FC<AdminSystemProps> = ({ maintenanceSettings, o
                 <h4 className="text-[9px] text-slate-500 uppercase font-black px-1 tracking-widest flex items-center gap-2">
                   <Shield size={10} className="text-neon-blue" /> System Toggles
                 </h4>
-                <div className="glass-card divide-y divide-white/5">
+                <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl divide-y divide-white/5">
                   {[
                     { key: 'maintenanceMode', label: 'Maintenance Mode', icon: AlertTriangle, color: 'text-amber-400' },
                     { key: 'videoTasksEnabled', label: 'Video Missions', icon: Zap, color: 'text-neon-blue' },
@@ -253,7 +253,7 @@ export const AdminSystem: React.FC<AdminSystemProps> = ({ maintenanceSettings, o
                 <h4 className="text-[9px] text-slate-500 uppercase font-black px-1 tracking-widest flex items-center gap-2">
                   <Zap size={10} className="text-emerald-green" /> Reward Configuration
                 </h4>
-                <form onSubmit={handleUpdateDailyBonus} className="glass-card p-4 space-y-4">
+                <form onSubmit={handleUpdateDailyBonus} className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 space-y-4">
                   <div className="space-y-2">
                     <label className="text-[8px] text-slate-500 uppercase font-black px-1">Daily Bonus (SAR)</label>
                     <div className="flex gap-2">
@@ -278,7 +278,7 @@ export const AdminSystem: React.FC<AdminSystemProps> = ({ maintenanceSettings, o
                 <h4 className="text-[9px] text-slate-500 uppercase font-black px-1 tracking-widest flex items-center gap-2">
                   <Zap size={10} className="text-neon-blue" /> Boost Configuration
                 </h4>
-                <form onSubmit={handleUpdateBoostSettings} className="glass-card p-4 space-y-4">
+                <form onSubmit={handleUpdateBoostSettings} className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 space-y-4">
                   <div className="space-y-2">
                     <label className="text-[8px] text-slate-500 uppercase font-black px-1">Boost Smart Link</label>
                     <input 
@@ -318,7 +318,7 @@ export const AdminSystem: React.FC<AdminSystemProps> = ({ maintenanceSettings, o
                 <h4 className="text-[9px] text-slate-500 uppercase font-black px-1 tracking-widest flex items-center gap-2">
                   <LinkIcon size={10} className="text-emerald-green" /> Global Script Injector
                 </h4>
-                <form onSubmit={handleUpdateAdScripts} className="glass-card p-4 space-y-4">
+                <form onSubmit={handleUpdateAdScripts} className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 space-y-4">
                   <div className="space-y-2">
                     <label className="text-[8px] text-slate-500 uppercase font-black px-1">Header Scripts</label>
                     <textarea 
@@ -349,7 +349,7 @@ export const AdminSystem: React.FC<AdminSystemProps> = ({ maintenanceSettings, o
                 <h4 className="text-[9px] text-slate-500 uppercase font-black px-1 tracking-widest flex items-center gap-2">
                   <Globe size={10} className="text-neon-blue" /> System Links & Rules
                 </h4>
-                <form onSubmit={handleUpdateSystemLinks} className="glass-card p-4 space-y-4">
+                <form onSubmit={handleUpdateSystemLinks} className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 space-y-4">
                   <div className="space-y-2">
                     <label className="text-[8px] text-slate-500 uppercase font-black px-1">Support Link</label>
                     <input 
@@ -408,7 +408,7 @@ export const AdminSystem: React.FC<AdminSystemProps> = ({ maintenanceSettings, o
                   className="space-y-4"
                 >
                   {activePaymentTab === 'crypto_bank' && (
-                    <form onSubmit={handleSavePaymentSettings} className="glass-card p-4 space-y-4">
+                    <form onSubmit={handleSavePaymentSettings} className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 space-y-4">
                       <div className="space-y-2">
                         <label className="text-[8px] text-slate-500 uppercase font-black px-1">USDT TRC20 Address</label>
                         <input 
@@ -439,7 +439,7 @@ export const AdminSystem: React.FC<AdminSystemProps> = ({ maintenanceSettings, o
                   )}
 
                   {activePaymentTab === 'local_method' && (
-                    <div className="glass-card p-4 space-y-4">
+                    <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 space-y-4">
                       <div className="space-y-2">
                         <label className="text-[8px] text-slate-500 uppercase font-black px-1">Select Country</label>
                         <select 
@@ -482,7 +482,7 @@ export const AdminSystem: React.FC<AdminSystemProps> = ({ maintenanceSettings, o
                   )}
 
                   {activePaymentTab === 'limits' && (
-                    <form onSubmit={handleSavePaymentLimits} className="glass-card p-4 space-y-4">
+                    <form onSubmit={handleSavePaymentLimits} className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 space-y-4">
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                           <label className="text-[8px] text-slate-500 uppercase font-black px-1">Min Withdraw</label>
@@ -526,7 +526,7 @@ export const AdminSystem: React.FC<AdminSystemProps> = ({ maintenanceSettings, o
                   )}
 
                   {activePaymentTab === 'auto_gateway' && (
-                    <form onSubmit={handleSaveAutoGateway} className="glass-card p-4 space-y-4">
+                    <form onSubmit={handleSaveAutoGateway} className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 space-y-4">
                       <div className="space-y-2">
                         <label className="text-[8px] text-slate-500 uppercase font-black px-1">API Key</label>
                         <input 

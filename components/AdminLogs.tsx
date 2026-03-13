@@ -14,7 +14,7 @@ export const AdminLogs: React.FC = () => {
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="glass-card p-12 flex flex-col items-center justify-center space-y-6"
+          className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-12 flex flex-col items-center justify-center space-y-6"
         >
           <div className="relative">
             <div className="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center relative z-10">

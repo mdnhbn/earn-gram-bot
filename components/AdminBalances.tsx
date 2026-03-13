@@ -85,7 +85,7 @@ export const AdminBalances: React.FC<AdminBalancesProps> = ({ onUpdateBalance, o
           <Search size={12} className="text-neon-blue" /> User Asset Control
         </h3>
         
-        <div className="glass-card p-4 space-y-4">
+        <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 space-y-4">
           <div className="flex gap-2">
             <div className="relative flex-1">
               <input 

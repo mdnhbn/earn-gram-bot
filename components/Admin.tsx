@@ -14,7 +14,7 @@ import { AdminApprovals } from './AdminApprovals';
 import { AdminBalances } from './AdminBalances';
 import { AdminBroadcast } from './AdminBroadcast';
 import { AdminDeposits } from './AdminDeposits';
-import { AdminWithdrawals } from './AdminWithdrawals';
+import { AdminPayouts } from './AdminPayouts';
 import { AdminLogs } from './AdminLogs';
 import { AdminSystem } from './AdminSystem';
 import { AdminTasks } from './AdminTasks';
@@ -109,7 +109,7 @@ const Admin: React.FC<AdminProps> = ({
             className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl transition-all duration-300 border ${
               activeAdminTab === tab.id
                 ? 'bg-neon-blue border-neon-blue text-midnight shadow-lg shadow-neon-blue/20 scale-[1.02]'
-                : 'glass-card border-white/5 text-slate-500 hover:text-slate-300 hover:border-white/10'
+                : 'bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl border-white/5 text-slate-500 hover:text-slate-300 hover:border-white/10'
             }`}
           >
             <tab.icon className={`w-4 h-4 ${activeAdminTab === tab.id ? 'text-midnight' : 'text-slate-500'}`} />
@@ -158,8 +158,9 @@ const Admin: React.FC<AdminProps> = ({
           )}
 
           {activeAdminTab === 'payouts' && (
-            <AdminWithdrawals 
+            <AdminPayouts 
               withdrawals={withdrawals} 
+              users={users}
               onAction={onAction} 
             />
           )}

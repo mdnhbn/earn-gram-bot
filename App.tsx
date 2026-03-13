@@ -1093,7 +1093,7 @@ const App: React.FC = () => {
 
   if (currentUser.isBanned) return (
     <div className="min-h-screen bg-[#0f172a] flex items-center justify-center p-10 text-center">
-      <div className="glass-card p-8 border-red-500/30">
+      <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-8 border-red-500/30 rounded-2xl">
         <h2 className="text-2xl font-black uppercase text-red-500 tracking-widest">Account Banned</h2>
         <p className="text-slate-400 mt-2 text-sm">Your account has been suspended for security violations.</p>
       </div>
@@ -1113,7 +1113,7 @@ const App: React.FC = () => {
       <p className="text-slate-400 text-sm leading-relaxed">
         To prevent fraud, you can only use one Telegram account per device on this platform.
       </p>
-      <div className="glass-card-dark p-4 w-full">
+      <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-4 w-full rounded-2xl">
         <p className="text-[10px] text-slate-500 uppercase font-bold mb-1">Security Details</p>
         <p className="text-[10px] text-slate-400 font-mono break-all">{securityError}</p>
       </div>
