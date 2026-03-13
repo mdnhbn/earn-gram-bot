@@ -84,3 +84,8 @@
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
 }
+@layer components {
+  .glass-card-dark {
+    @apply bg-slate-900/80 backdrop-blur-md border border-slate-700/50 shadow-xl;
+  }
+}
