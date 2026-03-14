@@ -112,24 +112,14 @@ const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaus
              {!task.url && <p className="text-amber-500 text-[10px] mt-4 uppercase font-black">Error: Task URL is missing</p>}
           </div>
         ) : (
-          <>
-            {isIframeLoading && !hasLoadError && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black z-10">
-                <div className="w-10 h-10 border-4 border-slate-800 border-t-blue-500 rounded-full animate-spin mb-4" />
-                <p className="text-sm text-white font-bold uppercase tracking-widest animate-pulse">Loading video...</p>
-              </div>
-            )}
-            
-            <iframe 
-              src={playerUrl}
-              className={`w-full h-full border-none ${isIframeLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
-              allow="autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-              title="Secure Player"
-              id="task-frame"
-              onLoad={() => setIsIframeLoading(false)}
-              onError={() => setHasLoadError(true)}
-            />
-          </>
+          <iframe 
+            src={playerUrl}
+            className="w-full h-full border-none"
+            allow="autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            title="Secure Player"
+            id="task-frame"
+            onError={() => setHasLoadError(true)}
+          />
         )}
       </main>
 

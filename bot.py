@@ -13,7 +13,8 @@ import database as db
 # --- RENDER PORT COMPLIANCE ---
 server = Flask(__name__)
 if CORS:
-    CORS(server)
+    # Allow the specific Render URL and the AI Studio preview URLs
+    CORS(server, resources={r"/api/*": {"origins": ["https://earn-gram-bot.onrender.com", "https://ais-dev-zk2zkmizyjvlalvi5wfkvm-5160058845.europe-west1.run.app", "https://ais-pre-zk2zkmizyjvlalvi5wfkvm-5160058845.europe-west1.run.app"]}})
 
 def is_admin(admin_id):
     """Check if a user is an admin."""
@@ -31,25 +32,44 @@ def health():
 
 @server.route('/api/user', methods=['POST'])
 def api_user():
-    data = request.json
-    class TGUser:
-        def __init__(self, id, username):
-            self.id = id
-            self.username = username
-    tg_user = TGUser(data.get('id'), data.get('username'))
-    user = db.create_user(tg_user, data.get('inviter_id'))
-    if '_id' in user:
-        user['_id'] = str(user['_id'])
-    return jsonify(user)
+    try:
+        data = request.json
+        raw_id = data.get('id') or data.get('user_id')
+        if not raw_id:
+            return jsonify({"success": False, "message": "User ID is required"}), 400
+            
+        user_id = int(raw_id)
+        username = data.get('username') or f"user_{user_id}"
+        
+        class TGUser:
+            def __init__(self, id, username):
+                self.id = id
+                self.username = username
+        
+        tg_user = TGUser(user_id, username)
+        user = db.create_user(tg_user, data.get('inviter_id'))
+        if user and '_id' in user:
+            user['_id'] = str(user['_id'])
+            
+        # Get full stats
+        stats = db.get_user_stats(user_id)
+        if stats:
+            user.update(stats)
+            
+        return jsonify({"success": True, "user": user})
+    except Exception as e:
+        print(f"[ERROR] api_user failed: {str(e)}")
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @server.route('/api/init_user', methods=['POST'])
 def api_init_user():
     try:
         data = request.json
-        user_id = data.get('user_id') or data.get('id')
-        if not user_id:
-            return jsonify({"status": "error", "message": "User ID is required"}), 400
-            
+        raw_id = data.get('user_id') or data.get('id')
+        if not raw_id:
+            return jsonify({"success": False, "message": "User ID is required"}), 400
+        
+        user_id = int(raw_id)
         # Extract inviter_id from start_param if present
         inviter_id = data.get('inviter_id')
         
@@ -63,10 +83,10 @@ def api_init_user():
             # Merge user data with stats
             user.update(stats)
             
-        return jsonify(user)
+        return jsonify({"success": True, "user": user})
     except Exception as e:
         print(f"[ERROR] init_user failed: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @server.route('/api/update_balance', methods=['POST'])
 def api_update_balance():
@@ -91,12 +111,19 @@ def api_update_balance():
             db.update_user_balance(user_id, amount, currency, tx_type, task_name)
             
         user = db.get_user(user_id)
-        if user and '_id' in user:
-            user['_id'] = str(user['_id'])
-        return jsonify(user or {"status": "error", "message": "User not found"})
+        if user:
+            if '_id' in user:
+                user['_id'] = str(user['_id'])
+            # Get full stats
+            stats = db.get_user_stats(user_id)
+            if stats:
+                user.update(stats)
+            return jsonify({"success": True, "user": user})
+        else:
+            return jsonify({"success": False, "message": "User not found"}), 404
     except Exception as e:
         print(f"[ERROR] Balance update failed: {str(e)}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        return jsonify({"success": False, "message": str(e)}), 500
 
 @server.route('/api/user_stats/<int:user_id>', methods=['GET'])
 def api_user_stats(user_id):
@@ -526,41 +553,46 @@ def api_maintenance():
 def api_daily_bonus():
     try:
         data = request.json
-        user_id = data.get('user_id') or data.get('userId')
+        raw_id = data.get('user_id') or data.get('userId')
         init_data = data.get('initData')
         
-        if not user_id:
+        if not raw_id:
             return jsonify({"success": False, "message": "Missing user_id"}), 400
         
+        user_id = int(raw_id)
         success, message = db.claim_daily_bonus(user_id)
         
         user = db.get_user(user_id)
         if not user:
             return jsonify({"success": False, "message": "User not found"}), 404
             
+        # Ensure _id is string for JSON
+        if '_id' in user:
+            user['_id'] = str(user['_id'])
+            
+        # Get full stats to ensure frontend has latest data
+        stats = db.get_user_stats(user_id)
+        if stats:
+            user.update(stats)
+
         if success:
             new_balance = user.get('balanceRiyal', 0.0)
             return jsonify({
                 "success": True, 
                 "message": message, 
                 "new_balance": new_balance,
-                "user": {
-                    "balanceRiyal": new_balance,
-                    "totalEarningsRiyal": user.get('totalEarningsRiyal', 0.0),
-                    "dailyBonusLastClaim": user.get('dailyBonusLastClaim').isoformat() if hasattr(user.get('dailyBonusLastClaim'), 'isoformat') else user.get('dailyBonusLastClaim')
-                }
+                "user": user
             }), 200
         
         # If not success, check if it's a business logic error (like already claimed)
-        # Return 200 so the frontend can read the JSON message
         return jsonify({
             "success": False, 
             "message": message,
-            "new_balance": user.get('balanceRiyal', 0.0)
+            "user": user
         }), 200
 
     except Exception as e:
-        logger.error(f"Daily bonus API error: {e}")
+        print(f"[ERROR] Daily bonus API error: {e}")
         return jsonify({"success": False, "message": "Server error, please try again later"}), 500
 
 @server.route('/api/verify', methods=['GET'])

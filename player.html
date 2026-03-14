@@ -9,232 +9,173 @@
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
-            background-color: #0f172a;
-            color: #f8fafc;
+            background-color: #000;
+            color: #fff;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
             overflow: hidden;
             height: 100vh;
             margin: 0;
         }
-        .video-container {
-            width: 100%;
-            height: 100%;
-            background: #000;
-            position: relative;
-        }
-        .video-container iframe {
-            width: 100% !important;
-            height: 100% !important;
-            border: none;
-            position: absolute;
-            top: 0;
-            left: 0;
-        }
-        .blur-overlay {
-            display: none;
-            backdrop-filter: blur(12px);
-            background: rgba(15, 23, 42, 0.9);
-        }
-        .blur-overlay.active {
-            display: flex;
-        }
-        .timer-glow {
-            text-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+        .loader {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
         }
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-        .loader {
-            border: 4px solid rgba(255, 255, 255, 0.1);
-            border-left-color: #3b82f6;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
+        .blur-overlay {
+            display: none;
+            backdrop-filter: blur(12px);
+            background: rgba(0, 0, 0, 0.8);
+        }
+        .blur-overlay.active {
+            display: flex;
         }
     </style>
 </head>
 <body>
     <div id="app" class="relative h-full flex flex-col">
-        <!-- Global Header Ad Placeholder -->
-        <div id="header-ad-player" class="w-full flex justify-center bg-transparent min-h-[1px] overflow-visible relative z-50"></div>
-
         <!-- Focus Warning Overlay -->
-        <div id="warning-overlay" class="blur-overlay fixed inset-0 z-50 flex-col items-center justify-center text-center p-6 transition-all duration-300">
-            <div class="bg-slate-800 p-8 rounded-3xl border-2 border-red-500 shadow-2xl shadow-red-500/20 max-w-xs scale-in">
-                <div class="text-6xl mb-4">⚠️</div>
-                <h1 class="text-2xl font-black text-white uppercase tracking-tighter mb-2">STRIKE ALERT</h1>
-                <p class="text-slate-400 text-sm mb-6">You left the secure zone. The timer is paused. Return now to avoid a ban!</p>
-                <div class="animate-bounce text-blue-400 font-bold">Waiting for focus...</div>
+        <div id="warning-overlay" class="blur-overlay fixed inset-0 z-[100] flex-col items-center justify-center text-center p-6">
+            <div class="bg-slate-900 p-8 rounded-3xl border-2 border-red-500 shadow-2xl max-w-xs">
+                <div class="text-5xl mb-4">⚠️</div>
+                <h1 class="text-xl font-black uppercase mb-2">STRIKE ALERT</h1>
+                <p class="text-slate-400 text-sm mb-6">Timer paused! Return to the app to continue earning.</p>
+                <div class="animate-pulse text-blue-400 font-bold">Waiting for focus...</div>
             </div>
         </div>
 
         <!-- Video Player Section -->
-        <div class="flex-1 bg-black relative video-container" id="player-slot" style="width: 100%; height: 100%; min-height: 200px;">
+        <div class="flex-1 bg-black relative overflow-hidden" id="player-container">
             <!-- Loading Spinner -->
-            <div id="loading-spinner" class="absolute inset-0 flex flex-col items-center justify-center bg-black z-10">
+            <div id="loading-spinner" class="absolute inset-0 flex flex-col items-center justify-center bg-black z-50">
                 <div class="loader mb-4"></div>
-                <p class="text-sm text-white font-bold uppercase tracking-widest animate-pulse">Loading video...</p>
+                <p class="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400 animate-pulse">Loading Secure Content...</p>
             </div>
-            
-            <!-- Fallback Message (Hidden by default) -->
-            <div id="fallback-zone" class="hidden absolute inset-0 flex flex-col items-center justify-center text-center p-8 bg-slate-900 z-20">
-                <div class="text-6xl mb-4">🚫</div>
-                <h3 class="text-xl font-bold text-white mb-2">Content cannot be displayed here.</h3>
-                <p class="text-slate-400 text-sm mb-8">Click the button below to watch on the official app and return here to claim.</p>
-                <a id="official-link" href="#" target="_blank" class="bg-blue-600 hover:bg-blue-500 px-10 py-4 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-blue-600/20 transition-all active:scale-95">
-                    Watch on App
+
+            <!-- Fallback Button (Hidden by default) -->
+            <div id="fallback-zone" class="hidden absolute inset-0 flex flex-col items-center justify-center bg-slate-950 z-40 p-6 text-center">
+                <div class="text-4xl mb-4">📺</div>
+                <h3 class="text-lg font-bold mb-4">Video not loading?</h3>
+                <a id="external-link" href="#" target="_blank" class="bg-blue-600 hover:bg-blue-500 px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs shadow-lg transition-all active:scale-95">
+                    Click here to watch
                 </a>
+                <p class="mt-4 text-[10px] text-slate-500 uppercase font-bold">Return here after watching to claim reward</p>
             </div>
+
+            <!-- Iframe Slot -->
+            <div id="iframe-slot" class="w-full h-full"></div>
         </div>
 
         <!-- Control Bar -->
-        <div class="bg-slate-900 border-t border-slate-800 p-4 flex flex-col items-center gap-4">
-            <div id="timer-box" class="flex items-center gap-3 bg-slate-800 px-6 py-2 rounded-2xl border border-slate-700">
-                <span class="text-xs font-bold text-slate-500 uppercase tracking-widest">Remaining</span>
-                <span id="timer-display" class="text-2xl font-black text-blue-400 font-mono timer-glow">00:00</span>
+        <div class="bg-[#0b141a] border-t border-white/5 p-4 flex flex-col items-center gap-4">
+            <div id="timer-box" class="flex items-center gap-3 bg-white/5 px-6 py-2 rounded-2xl border border-white/10">
+                <span class="text-[10px] font-black text-slate-500 uppercase tracking-widest">Time Left</span>
+                <span id="timer-display" class="text-xl font-black text-blue-400 font-mono">00:00</span>
             </div>
 
-            <!-- Captcha Section (Hidden initially) -->
+            <!-- Captcha Section -->
             <div id="captcha-box" class="hidden w-full max-w-xs animate-in slide-in-from-bottom duration-500">
                 <div class="bg-blue-600/10 border border-blue-500/30 p-4 rounded-2xl text-center space-y-3">
-                    <p class="text-xs font-bold text-blue-400 uppercase">Solve to Claim Reward</p>
+                    <p class="text-[10px] font-black text-blue-400 uppercase tracking-widest">Solve to Claim Reward</p>
                     <div class="flex items-center justify-center gap-3">
-                        <span id="math-problem" class="text-xl font-bold">5 + 3 = ?</span>
-                        <input type="number" id="captcha-input" class="w-20 bg-slate-900 border border-slate-700 rounded-lg px-2 py-2 text-center font-bold focus:border-blue-500 outline-none" placeholder="?">
+                        <span id="math-problem" class="text-xl font-black">? + ? = ?</span>
+                        <input type="number" id="captcha-input" class="w-20 bg-black border border-white/10 rounded-xl px-2 py-2 text-center font-black text-xl focus:border-blue-500 outline-none" placeholder="?">
                     </div>
-                    <button id="claim-btn" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-bold transition-all shadow-lg shadow-blue-600/20">
+                    <button id="claim-btn" class="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-xl font-black uppercase tracking-widest text-xs transition-all shadow-lg shadow-blue-600/20">
                         Claim Reward
                     </button>
                 </div>
             </div>
-
-            <!-- Global Footer Ad Placeholder -->
-            <div id="footer-ad-player" class="w-full flex justify-center bg-transparent min-h-[1px] overflow-visible relative z-50 mt-2"></div>
         </div>
     </div>
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        let videoUrl = urlParams.get('url');
-        const headerAdScript = urlParams.get('headerAd');
-        const footerAdScript = urlParams.get('footerAd');
-        let timeLeft = parseInt(urlParams.get('time')) || 60;
+        const videoUrl = urlParams.get('url');
+        let timeLeft = parseInt(urlParams.get('time')) || 30;
         
         const timerDisplay = document.getElementById('timer-display');
         const warningOverlay = document.getElementById('warning-overlay');
-        const playerSlot = document.getElementById('player-slot');
+        const iframeSlot = document.getElementById('iframe-slot');
         const captchaBox = document.getElementById('captcha-box');
         const timerBox = document.getElementById('timer-box');
         const mathProblem = document.getElementById('math-problem');
         const captchaInput = document.getElementById('captcha-input');
         const claimBtn = document.getElementById('claim-btn');
         const fallbackZone = document.getElementById('fallback-zone');
-        const officialLink = document.getElementById('official-link');
+        const externalLink = document.getElementById('external-link');
         const loadingSpinner = document.getElementById('loading-spinner');
-
-        // Force HTTPS
-        if (videoUrl && videoUrl.startsWith('http://')) {
-            videoUrl = videoUrl.replace('http://', 'https://');
-        }
-
-        // 0. Inject Ads
-        function injectAds() {
-            if (headerAdScript) {
-                const container = document.getElementById('header-ad-player');
-                const range = document.createRange();
-                const fragment = range.createContextualFragment(headerAdScript);
-                container.appendChild(fragment);
-            }
-            if (footerAdScript) {
-                const container = document.getElementById('footer-ad-player');
-                const range = document.createRange();
-                const fragment = range.createContextualFragment(footerAdScript);
-                container.appendChild(fragment);
-            }
-        }
-        injectAds();
 
         let isPaused = false;
         let captchaAnswer = 0;
+        let loadTimeout;
 
-        // 1. Detect Platform & Embed
+        function parseVideoUrl(url) {
+            if (!url) return null;
+
+            // YouTube
+            if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+                const match = url.match(regExp);
+                const id = (match && match[2].length === 11) ? match[2] : null;
+                if (id) return `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&showinfo=0&mute=0`;
+            }
+
+            // Dailymotion
+            if (url.includes('dailymotion.com') || url.includes('dai.ly')) {
+                let id = null;
+                if (url.includes('dai.ly')) {
+                    id = url.split('/').pop().split('?')[0];
+                } else {
+                    id = url.split('/video/')[1]?.split('?')[0];
+                }
+                if (id) return `https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=1&ui-logo=false`;
+            }
+
+            // Vimeo
+            if (url.includes('vimeo.com')) {
+                const id = url.split('/').pop().split('?')[0];
+                if (id) return `https://player.vimeo.com/video/${id}?autoplay=1`;
+            }
+
+            return url; // Return original if no specific parser matches
+        }
+
         function initPlayer() {
             if (!videoUrl) {
-                playerSlot.innerHTML = '<div class="flex items-center justify-center h-full text-red-500">Invalid URL</div>';
-                loadingSpinner.classList.add('hidden');
+                loadingSpinner.innerHTML = '<p class="text-red-500 font-bold">INVALID VIDEO URL</p>';
                 return;
             }
 
-            const platform = urlParams.get('platform');
-            let embedHtml = '';
-            const allowAttr = "autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen";
+            const embedUrl = parseVideoUrl(videoUrl);
+            externalLink.href = videoUrl;
 
-            // Aggressive YouTube Conversion
-            if (platform === 'YouTube' || videoUrl.includes('youtube.com') || videoUrl.includes('youtu.be')) {
-                const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
-                const match = videoUrl.match(regExp);
-                const id = (match && match[2].length === 11) ? match[2] : '';
-                if (id) {
-                    // Force Professional Embed with origin and explicit dimensions
-                    embedHtml = `<iframe src="https://www.youtube.com/embed/${id}?autoplay=1&rel=0&showinfo=0&origin=https://earn-gram-bot.onrender.com" allow="${allowAttr}" style="width:100%;height:100%;" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
-                }
-            } 
-            // Aggressive Dailymotion Conversion
-            else if (platform === 'Dailymotion' || videoUrl.includes('dailymotion.com') || videoUrl.includes('dai.ly')) {
-                let id = '';
-                if (videoUrl.includes('dai.ly')) {
-                    const parts = videoUrl.split('/');
-                    id = parts[parts.length - 1].split('?')[0];
-                } else {
-                    id = videoUrl.split('/video/')[1]?.split('?')[0];
-                }
-                if (id) {
-                    // Force Professional Embed
-                    embedHtml = `<iframe src="https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=1" allow="${allowAttr}" style="width:100%;height:100%;" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
-                }
-            }
-            // TikTok
-            else if (platform === 'TikTok' || videoUrl.includes('tiktok.com')) {
-                const id = videoUrl.split('/video/')[1]?.split('?')[0];
-                if (id) {
-                    embedHtml = `<iframe src="https://www.tiktok.com/embed/v2/${id}" allow="${allowAttr}" style="width:100%;height:100%;" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
-                }
-            } 
-            // Vimeo
-            else if (platform === 'Vimeo' || videoUrl.includes('vimeo.com')) {
-                const id = videoUrl.split('/').pop()?.split('?')[0];
-                if (id) {
-                    embedHtml = `<iframe src="https://player.vimeo.com/video/${id}?autoplay=1&muted=0" allow="${allowAttr}" style="width:100%;height:100%;" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
-                }
-            } 
-            // Facebook
-            else if (platform === 'Facebook' || videoUrl.includes('facebook.com')) {
-                embedHtml = `<iframe src="https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(videoUrl)}&show_text=0&autoplay=1" allow="${allowAttr}" style="width:100%;height:100%;" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
-            } 
-            // Custom MP4
-            else if (platform === 'Custom' || videoUrl.endsWith('.mp4')) {
-                embedHtml = `<video src="${videoUrl}" autoplay controls class="w-full h-full" style="width:100%;height:100%;" oncontextmenu="return false;" controlsList="nodownload" onloadeddata="document.getElementById('loading-spinner').classList.add('hidden')"></video>`;
-            } 
-            // Generic Fallback
-            else {
-                embedHtml = `<iframe src="${videoUrl}" allow="${allowAttr}" style="width:100%;height:100%;" onload="document.getElementById('loading-spinner').classList.add('hidden')"></iframe>`;
-            }
+            // Set a 10s timeout for fallback
+            loadTimeout = setTimeout(() => {
+                fallbackZone.classList.remove('hidden');
+                loadingSpinner.classList.add('hidden');
+            }, 10000);
 
-            if (embedHtml) {
-                playerSlot.innerHTML += embedHtml;
-            } else {
-                showFallback();
-            }
+            const iframe = document.createElement('iframe');
+            iframe.src = embedUrl;
+            iframe.className = "w-full h-full border-none";
+            iframe.allow = "autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen";
+            
+            iframe.onload = () => {
+                clearTimeout(loadTimeout);
+                loadingSpinner.classList.add('hidden');
+                fallbackZone.classList.add('hidden');
+            };
+
+            iframeSlot.appendChild(iframe);
         }
 
-        function showFallback() {
-            fallbackZone.classList.remove('hidden');
-            officialLink.href = videoUrl;
-            loadingSpinner.classList.add('hidden');
-        }
-
-        // 2. Timer Logic
+        // Timer Logic
         const countdown = setInterval(() => {
             if (!isPaused && timeLeft > 0) {
                 timeLeft--;
@@ -249,7 +190,7 @@
             }
         }, 1000);
 
-        // 3. Focus Monitoring (Strike System)
+        // Focus Monitoring
         window.onblur = () => {
             isPaused = true;
             warningOverlay.classList.add('active');
@@ -262,7 +203,7 @@
             window.parent.postMessage({ type: 'FOCUS_GAINED' }, '*');
         };
 
-        // 4. Captcha Implementation
+        // Captcha
         function showCaptcha() {
             timerBox.classList.add('hidden');
             captchaBox.classList.remove('hidden');
@@ -277,22 +218,12 @@
             }
         }
 
-        // 5. Completion Signal
         claimBtn.onclick = () => {
             const userVal = parseInt(captchaInput.value);
             if (userVal === captchaAnswer) {
-                // Prevent multiple clicks
                 claimBtn.disabled = true;
                 claimBtn.innerText = 'Claiming...';
-                
                 window.parent.postMessage({ type: 'CLAIM_TASK' }, '*');
-                
-                if (window.Telegram?.WebApp) {
-                    window.Telegram.WebApp.sendData(JSON.stringify({
-                        status: 'success',
-                        task_url: videoUrl
-                    }));
-                }
             } else {
                 alert('Wrong answer! Try again.');
                 showCaptcha();

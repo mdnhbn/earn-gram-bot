@@ -46,13 +46,12 @@ REF_PERCENTAGES = [0.10, 0.05, 0.02, 0.01]
 SIGNUP_COMMISSION = 0.50 # SAR awarded to inviter on new user signup
 
 def get_user(user_id):
-    """Fetch user by Telegram ID."""
+    """Fetch user by Telegram ID, ensuring it's an integer."""
     try:
-        if not user_id:
-            logger.error("get_user called with empty user_id")
+        if user_id is None:
             return None
         return users_col.find_one({"id": int(user_id)})
-    except ValueError:
+    except (ValueError, TypeError):
         logger.error(f"Invalid user_id format: {user_id}")
         return None
     except Exception as e:
@@ -598,11 +597,17 @@ def get_maintenance_settings():
         return None
 
 def claim_daily_bonus(user_id):
-    """Check and process daily bonus (1.00 SAR)."""
+    """Check and process daily bonus (1.00 SAR). Auto-registers user if missing."""
     try:
+        user_id = int(user_id)
         user = get_user(user_id)
+        
         if not user:
-            return False, "User not found"
+            # Auto-registration if user not found
+            logger.info(f"Auto-registering user {user_id} during bonus claim")
+            user = create_user({"id": user_id, "username": f"user_{user_id}"})
+            if not user:
+                return False, "Failed to create user"
         
         last_claim = user.get("dailyBonusLastClaim")
         now = datetime.utcnow()
