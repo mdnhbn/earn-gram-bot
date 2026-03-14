@@ -35,6 +35,15 @@
         .blur-overlay.active {
             display: flex;
         }
+        /* Force Iframe to fill container exactly */
+        #iframe-slot iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100% !important;
+            height: 100% !important;
+            border: none;
+        }
     </style>
 </head>
 <body>
@@ -51,7 +60,12 @@
 
         <!-- Video Player Section -->
         <div class="flex-1 bg-black relative overflow-hidden" id="player-container">
-            <!-- Loading Spinner -->
+            <!-- Background Loading Text (Visible when iframe is loading or black) -->
+            <div class="absolute inset-0 flex items-center justify-center text-slate-800 font-bold text-xs uppercase tracking-widest z-0">
+                🔄 Loading Video Player...
+            </div>
+
+            <!-- Loading Spinner Overlay -->
             <div id="loading-spinner" class="absolute inset-0 flex flex-col items-center justify-center bg-black z-50">
                 <div class="loader mb-4"></div>
                 <p class="text-[10px] font-black uppercase tracking-[0.2em] text-blue-400 animate-pulse">Loading Secure Content...</p>
@@ -68,7 +82,7 @@
             </div>
 
             <!-- Iframe Slot -->
-            <div id="iframe-slot" class="w-full h-full"></div>
+            <div id="iframe-slot" class="w-full h-full relative"></div>
         </div>
 
         <!-- Control Bar -->
@@ -123,7 +137,7 @@
                 const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
                 const match = url.match(regExp);
                 const id = (match && match[2].length === 11) ? match[2] : null;
-                if (id) return `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&showinfo=0&mute=0`;
+                if (id) return `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&origin=https://earn-gram-bot.onrender.com`;
             }
 
             // Dailymotion
@@ -134,7 +148,7 @@
                 } else {
                     id = url.split('/video/')[1]?.split('?')[0];
                 }
-                if (id) return `https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=1&ui-logo=false`;
+                if (id) return `https://www.dailymotion.com/embed/video/${id}?autoplay=1&mute=1`;
             }
 
             // Vimeo
@@ -165,6 +179,8 @@
             iframe.src = embedUrl;
             iframe.className = "w-full h-full border-none";
             iframe.allow = "autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen";
+            // Added sandbox for Telegram compatibility
+            iframe.sandbox = "allow-forms allow-scripts allow-same-origin allow-presentation";
             
             iframe.onload = () => {
                 clearTimeout(loadTimeout);
