@@ -116,6 +116,7 @@ const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaus
             src={playerUrl}
             className="w-full h-full border-none"
             allow="autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+            sandbox="allow-forms allow-scripts allow-same-origin allow-presentation"
             title="Secure Player"
             id="task-frame"
             onError={() => setHasLoadError(true)}
