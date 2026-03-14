@@ -163,7 +163,11 @@ const App: React.FC = () => {
   // Real-time synchronization: Initialize User from Telegram Data
   const currentUser = useMemo(() => {
     const tgUser = TelegramService.getUser();
-    if (!tgUser || !tgUser.id || tgUser.id === 0) {
+    
+    // Check if we are in a real Telegram environment
+    const isRealTelegram = tgUser && tgUser.id && tgUser.id !== 0 && tgUser.id !== 12345678;
+    
+    if (!isRealTelegram) {
       // Return a minimal mock user for preview if TG user is missing
       return {
         id: 0,
@@ -185,11 +189,11 @@ const App: React.FC = () => {
     const localUser = users.find(u => u.id === tgUser.id);
     if (localUser) return localUser;
     
-    // Fallback if not found locally, create a temp one
+    // Fallback if not found locally, create a temp one with real Telegram data
     return {
         id: tgUser.id,
         username: tgUser.username || `user_${tgUser.id}`,
-        fullName: tgUser.first_name ? `${tgUser.first_name} ${tgUser.last_name || ''}`.trim() : `User ${tgUser.id}`,
+        fullName: tgUser.first_name ? `${tgUser.first_name} ${tgUser.last_name || ''}`.trim() : (tgUser.username || `User ${tgUser.id}`),
         balanceRiyal: 0,
         balanceCrypto: 0,
         totalEarningsRiyal: 0,
@@ -543,7 +547,12 @@ const App: React.FC = () => {
   };
 
   const handleClaimExecution = async () => {
-    if (!currentUser?.id || !executionTask || !executionStartTime) return;
+    if (!currentUser?.id || currentUser.id === 0 || !executionTask || !executionStartTime) {
+      if (currentUser.id === 0) {
+        TelegramService.showAlert('Error: User ID missing. Please reload the app from Telegram.');
+      }
+      return;
+    }
     const isBoostTask = executionTask.id.startsWith('boost-');
     
     try {
@@ -552,7 +561,7 @@ const App: React.FC = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: currentUser.id,
+          user_id: currentUser.id,
           amount: executionTask.rewardRiyal,
           task_name: `${isBoostTask ? 'Boost' : 'Task'}: ${executionTask.title}`
         })
@@ -560,15 +569,19 @@ const App: React.FC = () => {
       
       if (response.ok) {
         const data = await response.json();
-        const updatedUsers = users.map((u) => u.id === currentUser.id ? {
-          ...u,
-          balanceRiyal: data.balanceRiyal,
-          balanceCrypto: data.balanceCrypto,
-          totalEarningsRiyal: data.totalEarningsRiyal,
-          lastBoostClaim: isBoostTask ? new Date().toISOString() : u.lastBoostClaim
-        } : u);
-        setUsers(updatedUsers);
-        saveUsers(updatedUsers);
+        if (data.success && data.user) {
+          const updatedUser = data.user;
+          const updatedUsers = users.map((u) => u.id === currentUser.id ? {
+            ...u,
+            balanceRiyal: updatedUser.balanceRiyal,
+            balanceCrypto: updatedUser.balanceCrypto,
+            totalEarningsRiyal: updatedUser.totalEarningsRiyal,
+            lastBoostClaim: isBoostTask ? new Date().toISOString() : u.lastBoostClaim
+          } : u);
+          setUsers(updatedUsers);
+          saveUsers(updatedUsers);
+          TelegramService.showAlert('Reward claimed successfully!');
+        }
       }
     } catch (error) {
       console.error('Failed to update balance on server:', error);
@@ -1108,6 +1121,32 @@ const App: React.FC = () => {
     </div>
   );
 
+  if (currentUser.id === 0 && !isPreviewMode) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-8 text-center space-y-8">
+        <motion.div 
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          className="text-7xl"
+        >
+          ⚠️
+        </motion.div>
+        <div className="space-y-4">
+          <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Identification Failed</h1>
+          <p className="text-slate-400 text-sm leading-relaxed max-w-[280px] mx-auto">
+            We couldn't verify your Telegram identity. Please ensure you are opening the app from the official bot.
+          </p>
+        </div>
+        <button 
+          onClick={() => window.location.reload()}
+          className="bg-primary hover:bg-primary/80 text-white font-black px-10 py-4 rounded-2xl uppercase tracking-widest transition-all active:scale-95 shadow-2xl shadow-primary/20"
+        >
+          Reload App
+        </button>
+      </div>
+    );
+  }
+
   if (isSecurityBlocked) return (
     <div className="min-h-screen bg-[#0f172a] flex flex-col items-center justify-center p-10 text-center space-y-6">
       <motion.div 
@@ -1152,7 +1191,7 @@ const App: React.FC = () => {
     <div className="min-h-screen pb-32 max-w-md mx-auto relative bg-[#0f172a] shadow-2xl overflow-x-hidden pt-12">
       <BannerAd id="header-ad-container" script={maintenance.headerAdScript} />
       
-      {executionTask && <ActiveTask task={executionTask} onClaim={handleClaimExecution} onCancel={handleCancelExecution} isPaused={isPaused} onFocusSignal={(lost, isManual) => lost ? (isManual ? setIsPaused(true) : handleViolation()) : setIsPaused(false)} />}
+      {executionTask && <ActiveTask task={executionTask} onClaim={handleClaimExecution} onCancel={handleCancelExecution} isPaused={isPaused} onFocusSignal={(lost, isManual) => lost ? (isManual ? setIsPaused(true) : handleViolation()) : setIsPaused(false)} userId={currentUser.id} />}
       
       <main className="relative z-10">
         <AnimatePresence mode="wait">

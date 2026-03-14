@@ -113,6 +113,7 @@
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         const videoUrl = urlParams.get('url');
+        const userId = urlParams.get('user_id');
         let timeLeft = parseInt(urlParams.get('time')) || 30;
         
         const timerDisplay = document.getElementById('timer-display');
@@ -279,7 +280,7 @@
             if (userVal === captchaAnswer) {
                 claimBtn.disabled = true;
                 claimBtn.innerText = 'Verifying...';
-                window.parent.postMessage({ type: 'CLAIM_TASK' }, '*');
+                window.parent.postMessage({ type: 'CLAIM_TASK', user_id: userId, status: 'success' }, '*');
             } else {
                 alert('Verification failed. Try again.');
                 showCaptcha();

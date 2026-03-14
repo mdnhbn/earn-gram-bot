@@ -9,9 +9,10 @@ interface ActiveTaskProps {
   onCancel: () => void;
   isPaused: boolean;
   onFocusSignal: (isLost: boolean, isManual?: boolean) => void;
+  userId: number;
 }
 
-const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaused, onFocusSignal }) => {
+const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaused, onFocusSignal, userId }) => {
   // Path corrected to root-relative for standard deployment
   const PLAYER_PATH = "player.html";
   const [isConfirmingExit, setIsConfirmingExit] = useState(false);
@@ -64,6 +65,7 @@ const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaus
     if (isVideoTask) {
       params.append('platform', (task as Task).platform);
     }
+    params.append('user_id', userId.toString());
     return `${PLAYER_PATH}?${params.toString()}`;
   };
 

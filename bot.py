@@ -16,6 +16,25 @@ if CORS:
     # Allow the specific Render URL and the AI Studio preview URLs
     CORS(server, resources={r"/api/*": {"origins": ["https://earn-gram-bot.onrender.com", "https://ais-dev-zk2zkmizyjvlalvi5wfkvm-5160058845.europe-west1.run.app", "https://ais-pre-zk2zkmizyjvlalvi5wfkvm-5160058845.europe-west1.run.app"]}})
 
+# --- BOT LOGIC ---
+TOKEN = os.getenv('BOT_TOKEN')
+if not TOKEN:
+    print("WARNING: BOT_TOKEN environment variable is missing. Bot features will be disabled.")
+    # Create a dummy bot object to avoid errors in the rest of the script
+    class DummyBot:
+        def infinity_polling(self): pass
+        def message_handler(self, *args, **kwargs): return lambda f: f
+        def callback_query_handler(self, *args, **kwargs): return lambda f: f
+        def remove_webhook(self): pass
+    bot = DummyBot()
+else:
+    bot = telebot.TeleBot(TOKEN)
+    try:
+        print("Removing webhook to prevent 409 Conflict...")
+        bot.remove_webhook()
+    except Exception as e:
+        print(f"Failed to remove webhook: {e}")
+
 def is_admin(admin_id):
     """Check if a user is an admin."""
     if not admin_id:
@@ -92,7 +111,12 @@ def api_init_user():
 def api_update_balance():
     try:
         data = request.json
-        user_id = int(data.get('user_id') or data.get('id'))
+        # Handle both user_id and id for flexibility
+        raw_id = data.get('user_id') or data.get('id')
+        if not raw_id:
+            return jsonify({"success": False, "message": "User ID is required"}), 400
+            
+        user_id = int(raw_id)
         amount = float(data.get('amount', 0))
         task_name = data.get('task_name', data.get('description', 'Task'))
         currency = data.get('currency', 'SAR')
@@ -103,7 +127,7 @@ def api_update_balance():
         if amount < 0:
             success, msg = db.deduct_balance(user_id, abs(amount), currency, tx_type, task_name)
             if not success:
-                return jsonify({"status": "error", "message": msg}), 400
+                return jsonify({"success": False, "message": msg}), 400
         elif tx_type == 'EARNING':
             db.process_reward(user_id, amount, task_name)
         else:
@@ -114,9 +138,14 @@ def api_update_balance():
         if user:
             if '_id' in user:
                 user['_id'] = str(user['_id'])
-            # Get full stats
+            # Get full stats to ensure UI updates with latest balance and earnings
             stats = db.get_user_stats(user_id)
             if stats:
+                # Map stats fields to frontend expected fields
+                user['balanceRiyal'] = stats.get('balance_sar', 0.0)
+                user['balanceCrypto'] = stats.get('balance_usdt', 0.0)
+                user['totalEarningsRiyal'] = stats.get('total_earnings_sar', 0.0)
+                user['totalTasksCompleted'] = stats.get('total_tasks_completed', 0)
                 user.update(stats)
             return jsonify({"success": True, "user": user})
         else:
@@ -695,18 +724,6 @@ def handle_exception(e):
     return jsonify({"error": "Internal Server Error", "details": str(e)}), 500
 
 # --- BOT LOGIC ---
-TOKEN = os.getenv('BOT_TOKEN')
-if not TOKEN:
-    print("WARNING: BOT_TOKEN environment variable is missing. Bot features will be disabled.")
-    # Create a dummy bot object to avoid errors in the rest of the script
-    class DummyBot:
-        def infinity_polling(self): pass
-        def message_handler(self, *args, **kwargs): return lambda f: f
-        def callback_query_handler(self, *args, **kwargs): return lambda f: f
-    bot = DummyBot()
-else:
-    bot = telebot.TeleBot(TOKEN)
-
 ADMIN_ID = int(os.getenv('ADMIN_ID', '929198867'))
 # The URL of your deployed Mini App frontend
 WEB_APP_URL = os.getenv('WEB_APP_URL', 'https://your-app-url.vercel.app')
