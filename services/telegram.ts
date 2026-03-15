@@ -13,14 +13,31 @@ export const TelegramService = {
       const tg = getTg();
       tg?.ready();
       tg?.expand();
+      console.log('Telegram WebApp initialized');
     } catch (e) {
       console.warn('Telegram WebApp init error:', e);
     }
   },
+
+  isReady: () => {
+    return !!getTg()?.initDataUnsafe?.user;
+  },
   
   getUser: () => {
     const tg = getTg();
-    return tg?.initDataUnsafe?.user || { id: 0, username: 'Guest' };
+    if (!tg) {
+      console.warn('Telegram WebApp not found');
+      return { id: 0, username: 'Guest', first_name: 'Guest' };
+    }
+    
+    const user = tg.initDataUnsafe?.user;
+    if (!user) {
+      console.warn('Telegram User data missing in initDataUnsafe');
+      return { id: 0, username: 'Guest', first_name: 'Guest' };
+    }
+    
+    console.log('Telegram User identified:', user.id, user.first_name);
+    return user;
   },
 
   getInitData: () => {

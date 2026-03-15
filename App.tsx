@@ -152,23 +152,44 @@ const App: React.FC = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(null); // null = unknown, true = connected, false = failed
   const [isSecurityBlocked, setIsSecurityBlocked] = useState(false);
+  const [securityError, setSecurityError] = useState('');
   const initialFetchDone = useRef(false);
   const isSyncingRef = useRef(false);
+  const [tgUser, setTgUser] = useState<any>(null);
 
   useEffect(() => {
     TelegramService.init();
+    // Try to get user immediately
+    const user = TelegramService.getUser();
+    if (user && user.id !== 0) {
+      setTgUser(user);
+    } else {
+      // Retry a few times if not ready
+      let retries = 0;
+      const interval = setInterval(() => {
+        const u = TelegramService.getUser();
+        if (u && u.id !== 0) {
+          setTgUser(u);
+          clearInterval(interval);
+        }
+        retries++;
+        if (retries > 10) clearInterval(interval);
+      }, 500);
+      return () => clearInterval(interval);
+    }
   }, []);
-  const [securityError, setSecurityError] = useState('');
-  
+
+  const isPreviewMode = useMemo(() => {
+    return !tgUser || !tgUser.id || tgUser.id === 12345678 || tgUser.id === 0 || tgUser.id === 'demo_id';
+  }, [tgUser]);
+
   // Real-time synchronization: Initialize User from Telegram Data
   const currentUser = useMemo(() => {
-    const tgUser = TelegramService.getUser();
-    
     // Check if we are in a real Telegram environment
+    // id 0 is our guest, 12345678 is often a mock ID in some environments
     const isRealTelegram = tgUser && tgUser.id && tgUser.id !== 0 && tgUser.id !== 12345678;
     
-    if (!isRealTelegram) {
-      // Return a minimal mock user for preview if TG user is missing
+    if (!isRealTelegram && !isPreviewMode) {
       return {
         id: 0,
         username: 'Guest',
@@ -186,32 +207,28 @@ const App: React.FC = () => {
       } as User;
     }
     
-    const localUser = users.find(u => u.id === tgUser.id);
+    const localUser = users.find(u => u.id === tgUser?.id);
     if (localUser) return localUser;
     
     // Fallback if not found locally, create a temp one with real Telegram data
     return {
-        id: tgUser.id,
-        username: tgUser.username || `user_${tgUser.id}`,
-        fullName: tgUser.first_name ? `${tgUser.first_name} ${tgUser.last_name || ''}`.trim() : (tgUser.username || `User ${tgUser.id}`),
+        id: tgUser?.id || 0,
+        username: tgUser?.username || `user_${tgUser?.id || 'guest'}`,
+        fullName: tgUser?.first_name ? `${tgUser.first_name} ${tgUser.last_name || ''}`.trim() : (tgUser?.username || `User ${tgUser?.id || 'Guest'}`),
         balanceRiyal: 0,
         balanceCrypto: 0,
         totalEarningsRiyal: 0,
         referrals: 0,
         isBanned: false,
-        role: tgUser.id === ADMIN_TELEGRAM_ID ? 'admin' : 'user',
+        role: tgUser?.id === ADMIN_TELEGRAM_ID ? 'admin' : 'user',
         warningCount: 0,
         isVerified: false,
         isFlagged: false,
         flagReason: ''
     } as User;
-  }, [users]);
+  }, [users, tgUser, isPreviewMode]);
 
   const isSuperAdmin = useMemo(() => currentUser.id === 929198867, [currentUser.id]);
-  const isPreviewMode = useMemo(() => {
-    const tgUser = TelegramService.getUser();
-    return !tgUser || !tgUser.id || tgUser.id === 12345678 || tgUser.id === 0 || tgUser.id === 'demo_id';
-  }, [currentUser.id]);
   const isAdmin = useMemo(() => isSuperAdmin || isPreviewMode, [isSuperAdmin, isPreviewMode]);
 
   // Leaderboard Logic
@@ -395,8 +412,10 @@ const App: React.FC = () => {
 
   const initUser = async () => {
     const tgUser = TelegramService.getUser();
-    if (!tgUser || !tgUser.id || isPreviewMode) {
-      setIsInitializing(false);
+    if (!tgUser || !tgUser.id || tgUser.id === 0) {
+      if (isPreviewMode) {
+        setIsInitializing(false);
+      }
       return;
     }
 
@@ -626,7 +645,10 @@ const App: React.FC = () => {
   const handleClaimBonus = async (userId?: number, initData?: string) => {
     const id = userId || currentUser?.id;
     const dataStr = initData || TelegramService.getInitData();
-    if (!id) return;
+    if (!id || id === 0) {
+      TelegramService.showAlert('Error: Identification failed. Please reload.');
+      return;
+    }
     
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
@@ -653,7 +675,7 @@ const App: React.FC = () => {
       if (data.success) {
         const updatedUser = data.user;
         setUsers(prevUsers => {
-          const updated = prevUsers.map((u) => u.id === currentUser.id ? { 
+          const updated = prevUsers.map((u) => u.id === id ? { 
             ...u, 
             balanceRiyal: updatedUser.balanceRiyal, 
             totalEarningsRiyal: updatedUser.totalEarningsRiyal, 
@@ -662,7 +684,7 @@ const App: React.FC = () => {
           saveUsers(updated);
           return updated;
         });
-        addTransaction(currentUser.id, 1, 'SAR', 'EARNING', 'Daily Bonus');
+        addTransaction(id, 1, 'SAR', 'EARNING', 'Daily Bonus');
         TelegramService.showAlert(data.message || 'Daily Bonus Claimed! +1.00 SAR');
       }
     } catch (error: any) {
@@ -1132,7 +1154,7 @@ const App: React.FC = () => {
           ⚠️
         </motion.div>
         <div className="space-y-4">
-          <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Identification Failed</h1>
+          <h1 className="text-2xl font-black text-white uppercase tracking-tighter">Connection Failed</h1>
           <p className="text-slate-400 text-sm leading-relaxed max-w-[280px] mx-auto">
             We couldn't verify your Telegram identity. Please ensure you are opening the app from the official bot.
           </p>
@@ -1141,7 +1163,7 @@ const App: React.FC = () => {
           onClick={() => window.location.reload()}
           className="bg-primary hover:bg-primary/80 text-white font-black px-10 py-4 rounded-2xl uppercase tracking-widest transition-all active:scale-95 shadow-2xl shadow-primary/20"
         >
-          Reload App
+          Retry Connection
         </button>
       </div>
     );

@@ -12,34 +12,38 @@ MONGO_URI = os.getenv('MONGO_URI', 'mongodb+srv://admin:password@cluster.mongodb
 MONGO_URI2 = os.getenv('MONGO_URI2', MONGO_URI)
 MONGO_URI3 = os.getenv('MONGO_URI3', MONGO_URI)
 
-client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=2000)
-client2 = MongoClient(MONGO_URI2, serverSelectionTimeoutMS=2000)
-client3 = MongoClient(MONGO_URI3, serverSelectionTimeoutMS=2000)
+# Initialize clients with separate connections
+client = MongoClient(MONGO_URI, serverSelectionTimeoutMS=5000)
+client2 = MongoClient(MONGO_URI2, serverSelectionTimeoutMS=5000)
+client3 = MongoClient(MONGO_URI3, serverSelectionTimeoutMS=5000)
 
 def test_connection():
     try:
         client.admin.command('ping')
         client2.admin.command('ping')
         client3.admin.command('ping')
-        logger.info("Successfully connected to all MongoDB instances.")
+        logger.info("Successfully connected to all three MongoDB instances.")
         return True
     except Exception as e:
-        logger.error(f"MongoDB connection failed: {e}")
+        logger.error(f"One or more MongoDB connections failed: {e}")
         return False
 
-# Test connection in background or on first request
-# For now, we just define the collections
-db = client['earngram_prod']
-db_tasks = client2['earngram_prod']
-db_logs = client3['earngram_prod']
+# Initialize databases
+# MONGO_URI: User Profiles and Balances
+db = client.get_database('earngram')
+# MONGO_URI2: Video and Ad Task data
+db_tasks = client2.get_database('earngram_tasks')
+# MONGO_URI3: Payout History and Transaction Logs
+db_logs = client3.get_database('earngram_logs')
 
+# Collections mapping to correct clusters
 users_col = db['users']
-transactions_col = db_logs['transactions']
-withdrawals_col = db_logs['withdrawals']
 tasks_col = db_tasks['tasks']
 ad_tasks_col = db_tasks['ad_tasks']
-settings_col = db_logs['settings']
+withdrawals_col = db_logs['withdrawals']
+transactions_col = db_logs['transactions']
 deposits_col = db_logs['deposits']
+settings_col = db_logs['settings']
 
 # Referral Percentages: Level 1 (10%), Level 2 (5%), Level 3 (2%), Level 4 (1%)
 REF_PERCENTAGES = [0.10, 0.05, 0.02, 0.01]

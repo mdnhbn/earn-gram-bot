@@ -150,7 +150,7 @@ const Profile: React.FC<ProfileProps> = ({ user, maintenanceSettings, onNavigate
         <div className="text-center space-y-1">
           <div className="flex items-center justify-center gap-2">
             <h2 className="text-2xl font-black tracking-tight text-white">
-              {user?.fullName || `@${user?.username}` || 'Guest User'}
+              {user?.fullName && user.fullName !== 'Guest User' ? user.fullName : user?.username && user.username !== 'Guest' ? `@${user.username}` : 'User'}
             </h2>
             {user.isVerified && (
               <motion.div

@@ -118,7 +118,7 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
           animate={{ opacity: 1, x: 0 }}
         >
           <h1 className="text-xl font-black tracking-tight">
-            Hi, <span className="text-primary">{user?.fullName?.split(' ')[0] || user?.username || 'Guest'}</span>
+            Hi, <span className="text-primary">{user?.fullName?.split(' ')[0] && user.fullName !== 'Guest User' ? user.fullName.split(' ')[0] : user?.username && user.username !== 'Guest' ? user.username : 'User'}</span>
           </h1>
           <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Premium Member</p>
         </motion.div>
