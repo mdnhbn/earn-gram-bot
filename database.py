@@ -694,6 +694,30 @@ def update_maintenance_settings(settings_data):
         logger.error(f"Error updating maintenance settings: {e}")
         return False
 
+def get_all_users():
+    """Fetch all registered users for admin panel."""
+    try:
+        users = list(users_col.find({}, {
+            "id": 1,
+            "username": 1,
+            "fullName": 1,
+            "balanceRiyal": 1,
+            "balanceCrypto": 1,
+            "totalEarningsRiyal": 1,
+            "isBanned": 1,
+            "isVerified": 1,
+            "createdAt": 1
+        }).sort("createdAt", -1))
+        
+        for u in users:
+            u['_id'] = str(u['_id'])
+            if 'createdAt' in u and isinstance(u['createdAt'], datetime):
+                u['createdAt'] = u['createdAt'].isoformat()
+        return users
+    except Exception as e:
+        logger.error(f"Error fetching all users: {e}")
+        return []
+
 def update_user_balance(user_id, amount, currency="SAR", tx_type="ADJUSTMENT", description="Balance Adjustment"):
     """Update user balance without affecting totalEarningsRiyal."""
     try:

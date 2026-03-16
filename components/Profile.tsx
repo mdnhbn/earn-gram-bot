@@ -34,6 +34,7 @@ const Profile: React.FC<ProfileProps> = ({ user, maintenanceSettings, onNavigate
   const isDev = !user?.id || user?.id === 12345678 || isSuperAdmin;
   const tgUser = TelegramService.getUser();
   const avatarUrl = tgUser?.photo_url;
+  const displayName = user?.fullName && user.fullName !== 'Guest User' ? user.fullName : tgUser?.first_name || (user?.username && user.username !== 'Guest' ? `@${user.username}` : 'User');
 
   const handleEditName = () => {
     TelegramService.haptic('medium');
@@ -150,7 +151,7 @@ const Profile: React.FC<ProfileProps> = ({ user, maintenanceSettings, onNavigate
         <div className="text-center space-y-1">
           <div className="flex items-center justify-center gap-2">
             <h2 className="text-2xl font-black tracking-tight text-white">
-              {user?.fullName && user.fullName !== 'Guest User' ? user.fullName : user?.username && user.username !== 'Guest' ? `@${user.username}` : 'User'}
+              {displayName}
             </h2>
             {user.isVerified && (
               <motion.div

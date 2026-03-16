@@ -106,27 +106,30 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
       minute: '2-digit',
       second: '2-digit',
       hour12: true
-    });
+    }).toUpperCase();
   };
+
+  const tgUser = TelegramService.getUser();
+  const fullName = tgUser?.first_name ? `${tgUser.first_name} ${tgUser.last_name || ''}` : (user?.fullName || user?.username || 'User');
+  const displayName = fullName.length > 20 ? fullName.slice(0, 20) + '...' : fullName;
 
   return (
     <div className="p-4 space-y-6 pb-24">
       {/* Header */}
-      <header className="flex justify-between items-center">
+      <header className="flex justify-between items-start">
         <motion.div
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
         >
-          <h1 className="text-xl font-black tracking-tight">
-            Hi, <span className="text-primary">{user?.fullName?.split(' ')[0] && user.fullName !== 'Guest User' ? user.fullName.split(' ')[0] : user?.username && user.username !== 'Guest' ? user.username : 'User'}</span>
+          <h1 className="text-sm font-black tracking-tight text-white uppercase">
+            Welcome, {displayName}
           </h1>
-          <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest">Premium Member</p>
+          <p className="text-slate-500 text-[8px] font-bold uppercase tracking-widest">Grow your assets with EarnGram</p>
         </motion.div>
         
-        <div className="flex items-center gap-3">
-          <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl px-3 py-1.5 flex items-center gap-2 rounded-lg">
-            <Clock size={12} className="text-primary" />
-            <span className="font-mono text-primary text-[10px] font-black tracking-widest">
+        <div className="flex items-center gap-2">
+          <div className="bg-[#1e293b]/40 backdrop-blur-md border border-[#334155]/50 px-3 py-1.5 rounded-lg">
+            <span className="font-mono text-[#2563eb] text-[9px] font-black tracking-widest">
               {formatTime(currentTime)}
             </span>
           </div>
@@ -135,186 +138,138 @@ const Home: React.FC<HomeProps> = ({ user, onClaimBonus, leaderboard, userRank, 
               TelegramService.haptic('light');
               onRefresh?.();
             }}
-            className={`p-2 rounded-full bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl text-slate-400 hover:text-white transition-colors ${isSyncing ? 'animate-spin' : ''}`}
+            className={`p-2 rounded-lg bg-[#1e293b]/40 backdrop-blur-md border border-[#334155]/50 text-slate-400 hover:text-white transition-colors ${isSyncing ? 'animate-spin' : ''}`}
           >
-            <RefreshCw size={18} />
+            <RefreshCw size={14} />
           </button>
         </div>
       </header>
 
-      {/* Balance Cards */}
-      <div className="space-y-4">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="balance-card"
-        >
-          <div className="relative z-10">
-            <div className="flex justify-between items-start mb-4">
-              <p className="text-blue-100/60 text-[10px] font-black uppercase tracking-[0.2em]">Total Balance</p>
-              <div className="bg-white/10 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest">
-                {currencyInfo?.code || 'SAR'}
-              </div>
-            </div>
-            
-            {isSyncing ? (
-              <div className="h-12 w-3/4 skeleton mb-4" />
-            ) : (
-              <div className="flex items-baseline gap-2 mb-4">
-                <h2 className="text-5xl font-black tracking-tighter">
-                  {((user?.balanceRiyal || 0) * (currencyInfo?.rate || 1)).toFixed(2)}
-                </h2>
-                <span className="text-blue-200/40 text-lg font-bold">{currencyInfo?.symbol || 'SAR'}</span>
-              </div>
-            )}
-
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full shadow-[0_0_8px_rgba(74,222,128,0.6)]" />
-              <span className="text-[9px] text-blue-100/40 font-black uppercase tracking-widest">Live Asset Tracking</span>
-            </div>
-          </div>
-        </motion.div>
-
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1 }}
-          className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-6 relative overflow-hidden group rounded-2xl"
-        >
-          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          <div className="relative z-10 flex justify-between items-center">
-            <div>
-              <p className="text-slate-500 text-[9px] font-black uppercase tracking-[0.2em] mb-1">Crypto Wallet</p>
-              <div className="flex items-baseline gap-2">
-                <h2 className="text-2xl font-black text-slate-100 tracking-tight">{(user?.balanceCrypto || 0).toFixed(2)}</h2>
-                <span className="text-slate-500 text-xs font-mono font-black opacity-40">USDT</span>
-              </div>
-            </div>
-            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
-              <Zap size={20} />
-            </div>
-          </div>
-        </motion.div>
+      {/* Balance Section */}
+      <div className="text-center space-y-1 py-2">
+        <p className="text-[#64748b] text-[8px] font-black uppercase tracking-[0.2em]">Total Balance (Riyal)</p>
+        <div className="flex items-baseline justify-center gap-2">
+          <h2 className="text-4xl font-black text-white tracking-tight">
+            {((user?.balanceRiyal || 0) * (currencyInfo?.rate || 1)).toFixed(2)}
+          </h2>
+          <span className="text-[#64748b] text-xs font-black uppercase">SAR</span>
+        </div>
       </div>
+
+      {/* Crypto Wallet Card */}
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-[#1e293b]/20 border border-[#334155]/30 p-5 rounded-2xl"
+      >
+        <p className="text-[#64748b] text-[8px] font-black uppercase tracking-[0.2em] mb-2">Crypto Wallet (USDT)</p>
+        <div className="flex items-baseline gap-2">
+          <h2 className="text-2xl font-black text-white tracking-tight">{(user?.balanceCrypto || 0).toFixed(2)}</h2>
+          <span className="text-[#64748b] text-[10px] font-black uppercase">USDT</span>
+        </div>
+      </motion.div>
 
       {/* Daily Bonus */}
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl p-5 flex items-center justify-between border-dashed border-white/10 rounded-2xl"
+        className="bg-[#1e293b]/20 border border-blue-500/30 p-4 flex items-center justify-between rounded-2xl shadow-[0_0_15px_rgba(37,99,235,0.05)]"
       >
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center text-accent">
-            <Zap size={24} />
-          </div>
-          <div>
-            <h3 className="font-black text-xs uppercase tracking-widest">Daily Reward</h3>
-            <p className="text-[10px] text-slate-400 font-medium">Claim {(maintenanceSettings?.dailyBonusAmount || 1.0).toFixed(2)} SAR</p>
-          </div>
+        <div>
+          <h3 className="font-black text-[11px] text-white uppercase tracking-widest">Daily Bonus</h3>
+          <p className="text-[9px] text-slate-500 font-bold">Claim {(maintenanceSettings?.dailyBonusAmount || 1.0).toFixed(0)} SAR every 24h</p>
         </div>
         <button
           disabled={!canClaimBonus || isClaiming}
           onClick={handleClaim}
-          className={`btn-premium px-6 py-2.5 text-[10px] uppercase tracking-widest ${
-            !canClaimBonus || isClaiming ? 'opacity-40 grayscale cursor-not-allowed' : 'btn-glow'
+          className={`px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+            !canClaimBonus || isClaiming 
+              ? 'bg-[#1e293b]/60 text-[#64748b] cursor-not-allowed' 
+              : 'bg-[#2563eb] text-white shadow-[0_0_20px_rgba(37,99,235,0.3)] active:scale-95'
           }`}
         >
-          {isClaiming ? 'Claiming...' : canClaimBonus ? 'Claim Now' : 'Claimed'}
+          {isClaiming ? '...' : canClaimBonus ? 'Claim Now' : 'Claimed'}
         </button>
       </motion.div>
 
       {/* Leaderboard */}
-      <section className="space-y-4">
+      <section className="space-y-3">
         <div className="flex justify-between items-center px-1">
-          <h3 className="font-black text-[10px] uppercase tracking-[0.2em] text-slate-500 flex items-center gap-2">
-            <Trophy size={12} className="text-primary" /> Top Earners
+          <h3 className="font-black text-[10px] uppercase tracking-[0.2em] text-white flex items-center gap-2">
+            <Trophy size={12} className="text-[#f97316]" /> Top Earners
           </h3>
-          <div className="flex items-center gap-1 text-[9px] text-primary font-black uppercase">
-            View All <ChevronRight size={10} />
-          </div>
+          <span className="text-[8px] text-[#64748b] font-black uppercase">Season {maintenanceSettings?.season || 3}</span>
         </div>
 
-        <div className="bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl overflow-hidden divide-y divide-white/5 rounded-2xl">
-          {leaderboard.slice(0, 5).map((u, index) => (
+        <div className="bg-[#1e293b]/20 border border-[#334155]/30 overflow-hidden rounded-2xl divide-y divide-[#334155]/20">
+          {leaderboard.slice(0, 3).map((u, index) => (
             <motion.div 
               key={u.id} 
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.3 + index * 0.05 }}
-              className={`p-4 flex items-center justify-between ${u.id === user.id ? 'bg-primary/10' : ''}`}
+              className={`p-4 flex items-center justify-between transition-colors ${index === 0 ? 'bg-blue-500/5' : ''}`}
             >
-              <div className="flex items-center gap-4">
-                <div className="w-8 h-8 rounded-lg bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl flex items-center justify-center text-xs font-black">
-                  {getRankIcon(index) || <span className="text-slate-500">{index + 1}</span>}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center justify-center w-6">
+                  {index === 0 && <Trophy size={14} className="text-[#f97316] drop-shadow-[0_0_5px_rgba(249,115,22,0.5)]" />}
+                  {index === 1 && <Trophy size={14} className="text-[#94a3b8]" />}
+                  {index === 2 && <Trophy size={14} className="text-[#b45309]" />}
+                </div>
+                <div className="w-8 h-8 rounded-full bg-[#2563eb] flex items-center justify-center text-[10px] font-black text-white shadow-lg shadow-blue-500/20">
+                  {u.username?.[0]?.toUpperCase() || 'U'}
                 </div>
                 <div>
-                  <p className="text-xs font-black text-slate-200">
+                  <p className="text-[10px] font-black text-white">
                     {maskName(u.username || 'User')}
-                    {u.id === user?.id && <span className="ml-2 text-[8px] bg-primary text-white px-1.5 py-0.5 rounded-full uppercase">You</span>}
                   </p>
-                  <p className="text-[8px] text-slate-500 uppercase font-black tracking-widest">Level {Math.floor((u.totalEarningsRiyal || 0) / 10) + 1}</p>
+                  <p className="text-[8px] text-[#64748b] uppercase font-black tracking-widest">ID: {u.id.toString().slice(0, 3)}***</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-xs font-black text-primary">{(u.totalEarningsRiyal || 0).toFixed(2)} SAR</p>
+                <p className="text-[10px] font-black text-[#22c55e]">{(u.totalEarningsRiyal || 0).toFixed(2)} SAR</p>
               </div>
             </motion.div>
           ))}
-          
-          <div className="bg-primary/5 p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-               <div className="w-8 h-8 rounded-lg bg-primary/20 flex items-center justify-center text-xs font-black text-primary">
-                 #{userRank}
-               </div>
-               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Your Global Rank</p>
-            </div>
-            <p className="text-[9px] text-primary font-black uppercase animate-pulse">Climbing ⚡</p>
-          </div>
         </div>
       </section>
 
-      {/* Boost Earnings */}
-      <motion.button 
-        initial={{ opacity: 0, y: 20 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        onClick={() => {
-          if (!boostCooldown) {
-            TelegramService.haptic('medium');
-            onStartBoost(maintenanceSettings?.boostAdLink || '', maintenanceSettings?.boostDuration || 15);
-          }
-        }}
-        disabled={!!boostCooldown}
-        className={`w-full text-left p-6 rounded-3xl flex items-center gap-5 transition-all active:scale-[0.98] border relative overflow-hidden group ${
-          boostCooldown 
-          ? 'bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl opacity-60 grayscale' 
-          : 'bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl border-primary/20 hover:border-primary/40 shadow-lg shadow-primary/5'
-        }`}
-      >
-        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${
-          boostCooldown ? 'bg-white/5 text-slate-600' : 'bg-primary/10 text-primary'
-        }`}>
-          {boostCooldown ? <Clock size={24} /> : <Zap size={24} />}
+      {/* Current Rank */}
+      <div className="bg-[#1e293b]/20 border border-[#334155]/30 p-4 rounded-2xl flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="text-[#f97316] font-black text-xs">#{userRank}</span>
+          <h3 className="font-black text-[10px] text-white uppercase tracking-widest">Your Current Rank</h3>
         </div>
+        <p className="text-[8px] text-[#64748b] font-bold">Keep earning to climb!</p>
+      </div>
 
-        <div className="flex-1">
-          <h4 className={`font-black uppercase tracking-widest text-[10px] mb-1 ${boostCooldown ? 'text-slate-500' : 'text-primary'}`}>
-            {boostCooldown ? 'Cooling Down' : 'Earnings Boost'}
-          </h4>
-          <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
-            {boostCooldown 
-              ? `Ready in ${boostCooldown}` 
-              : `Watch a quick ad to instantly earn SAR.`}
-          </p>
-        </div>
-        
-        {!boostCooldown && (
-          <div className="btn-premium px-4 py-2 text-[9px] uppercase tracking-widest btn-glow">
-            Start
+      {/* Boost Earnings */}
+      <motion.div 
+        className="bg-[#1e293b]/20 border border-orange-500/30 p-4 rounded-2xl flex items-center justify-between shadow-[0_0_15px_rgba(249,115,22,0.05)]"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-10 h-10 rounded-xl bg-[#f97316]/10 flex items-center justify-center text-[#f97316]">
+            <Zap size={18} fill="currentColor" />
           </div>
-        )}
-      </motion.button>
+          <div>
+            <h3 className="font-black text-[11px] text-white uppercase tracking-widest">Boost Earnings</h3>
+            <p className="text-[9px] text-slate-500 font-bold">Watch 30s to earn 0.05 SAR</p>
+          </div>
+        </div>
+        <button
+          onClick={() => {
+            if (!boostCooldown) {
+              TelegramService.haptic('medium');
+              onStartBoost(maintenanceSettings?.boostAdLink || '', maintenanceSettings?.boostDuration || 15);
+            }
+          }}
+          disabled={!!boostCooldown}
+          className={`px-6 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
+            boostCooldown 
+              ? 'bg-[#1e293b]/60 text-[#64748b] cursor-not-allowed' 
+              : 'bg-[#f97316] text-white shadow-[0_0_20px_rgba(249,115,22,0.3)] active:scale-95'
+          }`}
+        >
+          {boostCooldown ? boostCooldown : 'Boost Now'}
+        </button>
+      </motion.div>
     </div>
   );
 };

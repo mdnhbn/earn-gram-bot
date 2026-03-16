@@ -3,7 +3,8 @@ import React, { useState, useMemo } from 'react';
 import { 
   Banknote, Check, X, Loader2, User, Clock, Wallet, 
   Search, TrendingUp, Users, Calendar, ArrowUpRight,
-  Filter, History, AlertCircle
+  Filter, History, AlertCircle, CheckCircle2, XCircle,
+  CreditCard
 } from 'lucide-react';
 import { WithdrawalRequest, User as UserProfile } from '../types';
 import { TelegramService } from '../services/telegram';
@@ -186,53 +187,97 @@ export const AdminPayouts: React.FC<AdminPayoutsProps> = ({ withdrawals, users, 
             <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">No pending requests</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-4">
             {pendingWithdrawals.map((withdrawal) => (
               <motion.div 
                 key={withdrawal.id}
                 layout
-                className="bg-slate-900/50 border border-white/5 rounded-2xl p-4 space-y-4"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="bg-[#0b141a]/90 backdrop-blur-xl border border-white/10 rounded-[2rem] overflow-hidden shadow-2xl relative group"
               >
-                <div className="flex justify-between items-start">
+                {/* Subtle Glow Background */}
+                <div className="absolute inset-0 bg-gradient-to-br from-neon-blue/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                
+                <div className="p-7 flex justify-between items-start relative z-10">
                   <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <div className="w-8 h-8 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500">
-                        <Wallet size={14} />
-                      </div>
-                      <div>
-                        <div className="text-sm font-black text-white">{withdrawal.amount} {withdrawal.currency}</div>
-                        <div className="text-[9px] text-slate-500 font-bold uppercase">ID: {withdrawal.userId}</div>
-                      </div>
+                    <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.2em]">Withdrawal Amount</p>
+                    <div className="flex items-baseline gap-2">
+                      <span className="text-4xl font-black text-white tracking-tighter">
+                        {withdrawal.amount}
+                      </span>
+                      <span className="text-sm font-black text-neon-blue uppercase tracking-widest">
+                        {withdrawal.currency === 'Crypto' ? 'USDT' : 'SAR'}
+                      </span>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-[9px] text-emerald-500 font-black uppercase tracking-widest">{withdrawal.method}</div>
-                    <div className="text-[8px] text-slate-600 font-mono mt-1">{new Date(withdrawal.createdAt).toLocaleDateString()}</div>
+                  
+                  <div className="text-right space-y-2">
+                    <div className="inline-flex items-center gap-2 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl">
+                      <CreditCard size={12} className="text-neon-blue" />
+                      <span className="text-[10px] font-black text-white uppercase tracking-widest">
+                        {withdrawal.method}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5 justify-end text-slate-500">
+                      <Calendar size={10} />
+                      <p className="text-[9px] font-bold uppercase tracking-tighter">
+                        {new Date(withdrawal.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
                   </div>
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="px-7 pb-6 relative z-10">
+                  <div className="bg-white/5 rounded-2xl p-4 border border-white/10 space-y-3">
+                    <div className="flex justify-between items-center">
+                      <p className="text-[9px] text-slate-500 font-black uppercase tracking-widest">Destination Details</p>
+                      <p className="text-[9px] text-neon-blue font-mono font-bold">UID: {withdrawal.userId}</p>
+                    </div>
+                    <div className="bg-midnight/50 p-3 rounded-xl border border-white/5">
+                      <p className="text-xs font-mono text-slate-300 break-all leading-relaxed tracking-tight">
+                        {withdrawal.address}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 p-5 pt-0 relative z-10">
                   <button 
                     disabled={!!processingId}
-                    onClick={() => handleAction(withdrawal.id, 'APPROVED')}
-                    className="flex-1 bg-emerald-500 text-midnight py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50"
+                    onClick={() => {
+                      handleAction(withdrawal.id, 'APPROVED');
+                      TelegramService.haptic('medium');
+                    }}
+                    className="flex items-center justify-center gap-2 bg-emerald-green hover:bg-emerald-green/90 text-midnight py-4.5 rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-emerald-green/20 active:scale-95 transition-all disabled:opacity-50 group/btn"
                   >
-                    {processingId === withdrawal.id ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
-                    Approve
+                    {processingId === withdrawal.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <CheckCircle2 size={18} className="group-hover/btn:scale-110 transition-transform" />
+                    )}
+                    APPROVE
                   </button>
                   <button 
                     disabled={!!processingId}
-                    onClick={() => handleAction(withdrawal.id, 'REJECTED')}
-                    className="flex-1 bg-red-500/10 text-red-500 border border-red-500/20 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-50"
+                    onClick={() => {
+                      handleAction(withdrawal.id, 'REJECTED');
+                      TelegramService.haptic('medium');
+                    }}
+                    className="flex items-center justify-center gap-2 bg-red-500 hover:bg-red-500/90 text-white py-4.5 rounded-2xl text-[11px] font-black uppercase tracking-widest shadow-lg shadow-red-500/20 active:scale-95 transition-all disabled:opacity-50 group/btn"
                   >
-                    {processingId === withdrawal.id ? <Loader2 size={12} className="animate-spin" /> : <X size={12} />}
-                    Reject
+                    {processingId === withdrawal.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <XCircle size={18} className="group-hover/btn:scale-110 transition-transform" />
+                    )}
+                    REJECT
                   </button>
                 </div>
               </motion.div>
             ))}
           </div>
-        )}
+        ) }
       </div>
 
       {/* Processed Payments */}

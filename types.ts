@@ -123,8 +123,10 @@ export interface MaintenanceSettings {
   reportLink: string;
   depositInstructions: string;
   localPayConfig?: Record<string, Record<string, string>>;
-  minWithdraw?: number;
-  maxWithdraw?: number;
+  minWithdrawSAR?: number;
+  maxWithdrawSAR?: number;
+  minWithdrawUSDT?: number;
+  maxWithdrawUSDT?: number;
   minDeposit?: number;
   maxDeposit?: number;
   season?: number;

@@ -68,15 +68,38 @@ const Wallet: React.FC<WalletProps> = ({ user, withdrawals, transactions, onWith
       TelegramService.showAlert('Please enter a valid amount.');
       return;
     }
+
+    const minWSAR = maintenanceSettings.minWithdrawSAR || 10;
+    const maxWSAR = maintenanceSettings.maxWithdrawSAR || 1000;
+    const minWUSDT = maintenanceSettings.minWithdrawUSDT || 5;
+    const maxWUSDT = maintenanceSettings.maxWithdrawUSDT || 500;
+
     const rateToUse = mode === 'USDT' ? usdtRate : currentRate;
     const amountInSAR = val / rateToUse;
+
     if (mode === 'Local') {
+      if (val < minWSAR) {
+        TelegramService.showAlert(`⚠️ Error: Minimum withdrawal is ${minWSAR} SAR`);
+        return;
+      }
+      if (val > maxWSAR) {
+        TelegramService.showAlert(`⚠️ Error: Maximum withdrawal is ${maxWSAR} SAR`);
+        return;
+      }
       if (amountInSAR > (user?.balanceRiyal || 0)) {
         TelegramService.showAlert('Insufficient Balance.');
         return;
       }
       onWithdraw({ amount: amountInSAR, currency: 'Riyal', localCurrency: selectedCurrency, localAmount: val, address, method: 'Local Bank' });
     } else {
+      if (val < minWUSDT) {
+        TelegramService.showAlert(`⚠️ Error: Minimum withdrawal is ${minWUSDT} USDT`);
+        return;
+      }
+      if (val > maxWUSDT) {
+        TelegramService.showAlert(`⚠️ Error: Maximum withdrawal is ${maxWUSDT} USDT`);
+        return;
+      }
       if (val > (user?.balanceCrypto || 0)) {
         TelegramService.showAlert('Insufficient USDT balance.');
         return;

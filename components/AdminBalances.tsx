@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Search, User as UserIcon, Wallet, Smartphone, Globe, RefreshCcw, Loader2, ShieldCheck, UserCheck, Ban } from 'lucide-react';
+import { Search, User as UserIcon, Wallet, Smartphone, Globe, RefreshCcw, Loader2, ShieldCheck, UserCheck, Ban, CheckCircle2, XCircle } from 'lucide-react';
 import { TelegramService } from '../services/telegram';
 import { User as UserType } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -8,24 +8,33 @@ import { motion, AnimatePresence } from 'motion/react';
 interface AdminBalancesProps {
   onUpdateBalance: (userId: number, amount: number, currency: 'SAR' | 'USDT', type: 'ADJUSTMENT', description: string) => Promise<void>;
   onResetDevice: (userId: number) => Promise<void>;
+  initialSearchId?: string;
 }
 
-export const AdminBalances: React.FC<AdminBalancesProps> = ({ onUpdateBalance, onResetDevice }) => {
-  const [searchId, setSearchId] = useState('');
+export const AdminBalances: React.FC<AdminBalancesProps> = ({ onUpdateBalance, onResetDevice, initialSearchId }) => {
+  const [searchId, setSearchId] = useState(initialSearchId || '');
   const [isSearching, setIsSearching] = useState(false);
   const [searchedUser, setSearchedUser] = useState<any>(null);
   const [adjustment, setAdjustment] = useState({ amount: '', currency: 'SAR' as 'SAR' | 'USDT' });
   const [isUpdating, setIsUpdating] = useState(false);
 
-  const handleSearch = async () => {
-    if (!searchId) return;
+  React.useEffect(() => {
+    if (initialSearchId) {
+      setSearchId(initialSearchId);
+      handleSearch(initialSearchId);
+    }
+  }, [initialSearchId]);
+
+  const handleSearch = async (idToSearch?: string) => {
+    const id = idToSearch || searchId;
+    if (!id) return;
     setIsSearching(true);
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
-      const res = await fetch(`${apiUrl}/api/admin/search_user?user_id=${searchId}`);
+      const res = await fetch(`${apiUrl}/api/admin/search_user?user_id=${id}`);
       if (res.ok) {
         const data = await res.json();
-        setSearchedUser(data.user);
+        setSearchedUser(data); // The API returns {status: 'success', id, username, ...}
         TelegramService.haptic('medium');
       } else {
         TelegramService.showAlert('User not found');
@@ -98,7 +107,7 @@ export const AdminBalances: React.FC<AdminBalancesProps> = ({ onUpdateBalance, o
               <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
             </div>
             <button 
-              onClick={handleSearch}
+              onClick={() => handleSearch()}
               disabled={isSearching || !searchId}
               className="glass-button px-6 py-3 rounded-2xl text-xs font-black uppercase tracking-widest disabled:opacity-50 neon-blue-glow flex items-center gap-2"
             >

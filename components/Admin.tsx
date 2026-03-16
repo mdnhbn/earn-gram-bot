@@ -50,6 +50,7 @@ const Admin: React.FC<AdminProps> = ({
   onApproveTask, onRejectTask, onResetDevice 
 }) => {
   const [activeAdminTab, setActiveAdminTab] = useState<'system' | 'payouts' | 'messaging' | 'balances' | 'tasks' | 'approvals' | 'users' | 'deposits' | 'logs'>('system');
+  const [searchUserId, setSearchUserId] = useState<string>('');
 
   const isPreviewMode = !currentUser.id || currentUser.id === 12345678 || currentUser.id === 0;
   const isAdmin = isUserAdmin(currentUser.id);
@@ -66,54 +67,46 @@ const Admin: React.FC<AdminProps> = ({
   }
 
   const adminTabs = [
-    { id: 'system', label: 'System', icon: Settings },
-    { id: 'approvals', label: 'Approvals', icon: CheckCircle },
-    { id: 'tasks', label: 'Tasks', icon: List },
-    { id: 'users', label: 'Users', icon: Users },
-    { id: 'balances', label: 'Balances', icon: Wallet, super: true },
-    { id: 'payouts', label: 'Payouts', icon: CreditCard },
-    { id: 'messaging', label: 'Broadcast', icon: Send },
-    { id: 'deposits', label: 'Deposits', icon: Zap, super: true },
-    { id: 'logs', label: 'Logs', icon: ScrollText, super: true }
+    { id: 'system', label: 'SYSTEM', icon: Settings },
+    { id: 'approvals', label: 'APPROVALS', icon: CheckCircle },
+    { id: 'tasks', label: 'TASKS', icon: List },
+    { id: 'users', label: 'USERS', icon: Users },
+    { id: 'balances', label: 'BALANCES', icon: Wallet, super: true },
+    { id: 'payouts', label: 'PAYOUTS', icon: CreditCard },
+    { id: 'messaging', label: 'BROADCAST', icon: Send },
+    { id: 'deposits', label: 'DEPOSITS', icon: Zap, super: true },
+    { id: 'local_pay', label: 'LOCAL PAY', icon: CreditCard, super: true }
   ].filter(tab => !tab.super || isSuperAdmin);
 
   return (
     <div className="space-y-6 pb-20">
-      <header className="text-center space-y-2 py-4">
+      <header className="text-center space-y-2 py-6">
         <motion.h2 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="text-2xl font-black glow-text tracking-tight"
+          className="text-2xl font-black italic uppercase tracking-[0.1em] text-white"
         >
-          CONTROL CENTER
+          ADMIN PANEL
         </motion.h2>
-        <motion.p 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.1 }}
-          className="text-[10px] text-slate-500 font-black uppercase tracking-[0.3em]"
-        >
-          System Administration • v2.0
-        </motion.p>
       </header>
 
       {/* Main Navigation Grid */}
-      <div className="grid grid-cols-3 gap-2 px-1">
+      <div className="grid grid-cols-4 gap-2 px-2">
         {adminTabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => {
               TelegramService.haptic('light');
               setActiveAdminTab(tab.id as any);
+              if (tab.id !== 'balances') setSearchUserId('');
             }}
-            className={`flex flex-col items-center justify-center gap-1.5 py-4 rounded-2xl transition-all duration-300 border ${
+            className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-lg transition-all duration-300 border ${
               activeAdminTab === tab.id
-                ? 'bg-neon-blue border-neon-blue text-midnight shadow-lg shadow-neon-blue/20 scale-[1.02]'
-                : 'bg-[#0b141a]/80 backdrop-blur-md border border-white/10 shadow-2xl border-white/5 text-slate-500 hover:text-slate-300 hover:border-white/10'
+                ? 'bg-[#2563eb] border-[#2563eb] text-white shadow-lg shadow-blue-500/20'
+                : 'bg-[#1e293b]/40 backdrop-blur-md border-[#334155]/50 text-[#64748b] hover:text-[#94a3b8]'
             }`}
           >
-            <tab.icon className={`w-4 h-4 ${activeAdminTab === tab.id ? 'text-midnight' : 'text-slate-500'}`} />
-            <span className="text-[8px] font-black uppercase tracking-widest">{tab.label}</span>
+            <span className="text-[9px] font-black uppercase tracking-widest">{tab.label}</span>
           </button>
         ))}
       </div>
@@ -131,6 +124,7 @@ const Admin: React.FC<AdminProps> = ({
             <AdminSystem 
               maintenanceSettings={maintenanceSettings}
               onUpdateMaintenance={onUpdateMaintenance}
+              onResetLeaderboard={onResetLeaderboard}
               currentUser={currentUser}
             />
           )}
@@ -169,6 +163,7 @@ const Admin: React.FC<AdminProps> = ({
             <AdminBalances 
               onUpdateBalance={onUpdateBalance} 
               onResetDevice={onResetDevice} 
+              initialSearchId={searchUserId}
             />
           )}
 
@@ -190,6 +185,10 @@ const Admin: React.FC<AdminProps> = ({
               onUnban={onUnban}
               onResetDevice={onResetDevice}
               onUpdateBalance={onUpdateBalance}
+              onManageUser={(userId) => {
+                setSearchUserId(userId.toString());
+                setActiveAdminTab('balances');
+              }}
             />
           )}
 

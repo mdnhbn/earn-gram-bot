@@ -298,6 +298,22 @@ const App: React.FC = () => {
         
         setLiveRank(data.rank || null);
         
+        // If admin, fetch all users for the admin panel
+        if (isAdmin || isUserAdmin(currentUser.id)) {
+          try {
+            const usersRes = await fetchWithTimeout(`${apiUrl}/api/admin/users?admin_id=${currentUser.id}`);
+            if (usersRes.ok) {
+              const allUsers = await usersRes.json();
+              if (allUsers && Array.isArray(allUsers)) {
+                setUsers(allUsers);
+                saveUsers(allUsers);
+              }
+            }
+          } catch (err) {
+            console.warn('Failed to fetch all users for admin:', err);
+          }
+        }
+        
         setUsers(prevUsers => {
           let userExists = false;
           const updatedUsers = prevUsers.map(u => {
@@ -478,7 +494,7 @@ const App: React.FC = () => {
   const lastSyncTime = useRef(Date.now());
   useEffect(() => {
     const now = Date.now();
-    if (currentTab !== 'admin' && (now - lastSyncTime.current > 10000)) {
+    if (currentTab === 'admin' || (currentTab !== 'admin' && (now - lastSyncTime.current > 10000))) {
       fetchLiveStats(true);
       lastSyncTime.current = now;
     }

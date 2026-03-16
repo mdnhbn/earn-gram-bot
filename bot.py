@@ -265,6 +265,19 @@ def api_admin_user_details(user_id):
         print(f"[ERROR] api_admin_user_details failed: {str(e)}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@server.route('/api/admin/users', methods=['GET'])
+def api_admin_users():
+    try:
+        admin_id = request.args.get('admin_id')
+        if not is_admin(admin_id):
+            return jsonify({"status": "error", "message": "Unauthorized"}), 403
+            
+        users = db.get_all_users()
+        return jsonify(users), 200
+    except Exception as e:
+        print(f"[ERROR] api_admin_users failed: {str(e)}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 @server.route('/api/admin/search_user', methods=['GET'])
 def api_admin_search_user():
     try:
@@ -792,9 +805,10 @@ def launch_app(chat_id, user):
     markup.add(btn)
     
     balance = user.get('balanceRiyal', 0.0)
+    display_name = user.get('fullName') or user.get('username') or f"User {user.get('id')}"
     bot.send_message(
         chat_id, 
-        f"Welcome back, *{user['username']}*! 💰\n\nYour Balance: `{balance:.2f} SAR`\n\nClick below to start tasks and earn rewards!",
+        f"Welcome back, *{display_name}*! 💰\n\nYour Balance: `{balance:.2f} SAR`\n\nClick below to start tasks and earn rewards!",
         reply_markup=markup,
         parse_mode="Markdown"
     )
@@ -840,6 +854,28 @@ def broadcast(message):
         except: pass
     
     bot.reply_to(message, f"✅ Broadcast sent to {count} users.")
+
+# --- GLOBAL MESSAGE FILTER ---
+# This handler catches all messages that weren't handled by specific command handlers above.
+# It silently deletes any message sent by a non-admin user, except for the /start command.
+@bot.message_handler(func=lambda message: True, content_types=['text', 'audio', 'document', 'photo', 'sticker', 'video', 'video_note', 'voice', 'location', 'contact', 'new_chat_members', 'left_chat_member', 'new_chat_title', 'new_chat_photo', 'delete_chat_photo', 'group_chat_created', 'supergroup_chat_created', 'channel_chat_created', 'migrate_to_chat_id', 'migrate_from_chat_id', 'pinned_message'])
+def delete_all_messages(message):
+    # Admin Exception: Admin ID 929198867 (and preview IDs) can send messages.
+    if is_admin(message.from_user.id):
+        return
+    
+    # Command Protection: Allow /start command to be processed.
+    # Note: If /start was handled by the handler above, this code might not even be reached
+    # depending on how telebot is configured, but we include it here for safety.
+    if message.text and message.text.startswith('/start'):
+        return
+        
+    # Auto-Delete all other messages silently.
+    try:
+        bot.delete_message(message.chat.id, message.message_id)
+    except Exception as e:
+        # Silently fail if deletion fails (e.g. message already deleted or bot lacks permissions)
+        pass
 
 if __name__ == '__main__':
     print("DEBUG: bot.py main starting")
