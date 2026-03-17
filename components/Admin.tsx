@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   Settings, CheckCircle, List, Users, Wallet, 
   Send, CreditCard, ScrollText, Shield,
-  Zap
+  Zap, AlertTriangle
 } from 'lucide-react';
 
 import { AdminApprovals } from './AdminApprovals';
@@ -49,7 +49,7 @@ const Admin: React.FC<AdminProps> = ({
   onUnban, onUpdateBalance, onResetLeaderboard, 
   onApproveTask, onRejectTask, onResetDevice 
 }) => {
-  const [activeAdminTab, setActiveAdminTab] = useState<'system' | 'payouts' | 'messaging' | 'balances' | 'tasks' | 'approvals' | 'users' | 'deposits' | 'logs'>('system');
+  const [activeAdminTab, setActiveAdminTab] = useState<'system' | 'payouts' | 'messaging' | 'balances' | 'tasks' | 'approvals' | 'users' | 'deposits' | 'logs' | 'danger'>('danger');
   const [searchUserId, setSearchUserId] = useState<string>('');
 
   const isPreviewMode = !currentUser.id || currentUser.id === 12345678 || currentUser.id === 0;
@@ -74,6 +74,7 @@ const Admin: React.FC<AdminProps> = ({
     { id: 'balances', label: 'BALANCES', icon: Wallet, super: true },
     { id: 'payouts', label: 'PAYOUTS', icon: CreditCard },
     { id: 'messaging', label: 'BROADCAST', icon: Send },
+    { id: 'danger', label: 'DANGER', icon: AlertTriangle, super: true },
     { id: 'deposits', label: 'DEPOSITS', icon: Zap, super: true },
     { id: 'local_pay', label: 'LOCAL PAY', icon: CreditCard, super: true }
   ].filter(tab => !tab.super || isSuperAdmin);
@@ -120,6 +121,56 @@ const Admin: React.FC<AdminProps> = ({
           transition={{ duration: 0.2 }}
           className="px-1"
         >
+          {activeAdminTab === 'danger' && (
+            <div className="px-2">
+              <section className="bg-red-500/10 border border-red-500/30 rounded-2xl p-6 space-y-4 text-center">
+                <div className="space-y-1">
+                  <h4 className="text-[10px] font-black text-red-500 uppercase tracking-[0.2em]">⚠️ DANGER ZONE ⚠️</h4>
+                  <p className="text-[9px] text-slate-400 uppercase font-bold">Wipe all data except Admin account</p>
+                </div>
+
+                <button
+                  onClick={() => {
+                    TelegramService.showPopup({
+                      title: 'ARE YOU SURE?',
+                      message: 'This will permanently delete all users, tasks, and balances. This cannot be undone!',
+                      buttons: [
+                        { id: 'wipe', type: 'destructive', text: 'YES, WIPE EVERYTHING' },
+                        { id: 'cancel', type: 'cancel', text: 'CANCEL' }
+                      ]
+                    }, async (id) => {
+                      if (id === 'wipe') {
+                        try {
+                          TelegramService.haptic('heavy');
+                          const apiUrl = import.meta.env.VITE_API_URL || '';
+                          const res = await fetch(`${apiUrl}/api/admin/wipe_database`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ admin_id: currentUser.id })
+                          });
+
+                          const result = await res.json();
+                          if (res.ok && result.success) {
+                            TelegramService.showAlert('DATABASE WIPE SUCCESSFUL! The system has been reset.');
+                            window.location.reload();
+                          } else {
+                            TelegramService.showAlert(`Error: ${result.message || 'Wipe failed'}`);
+                          }
+                        } catch (err) {
+                          console.error('Wipe failed:', err);
+                          TelegramService.showAlert('Network error. Wipe failed.');
+                        }
+                      }
+                    });
+                  }}
+                  className="w-full bg-red-600 text-white py-3 rounded-xl font-black text-[10px] uppercase tracking-widest shadow-lg shadow-red-500/30 active:scale-95 transition-all border-b-4 border-red-800"
+                >
+                  RESET ENTIRE DATABASE
+                </button>
+              </section>
+            </div>
+          )}
+
           {activeAdminTab === 'system' && (
             <AdminSystem 
               maintenanceSettings={maintenanceSettings}

@@ -1,7 +1,8 @@
 
 import React, { useState } from 'react';
 import { 
-  ChevronDown
+  ChevronDown,
+  AlertTriangle
 } from 'lucide-react';
 import { MaintenanceSettings, AdminPaymentDetails } from '../types';
 import { TelegramService } from '../services/telegram';
@@ -191,7 +192,7 @@ export const AdminSystem: React.FC<AdminSystemProps> = ({ maintenanceSettings, o
   return (
     <div className="space-y-6">
       {/* Sub-Navigation */}
-      <div className="grid grid-cols-4 gap-2 px-2">
+      <div className="flex overflow-x-auto gap-2 px-2 pb-2 no-scrollbar">
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -199,7 +200,7 @@ export const AdminSystem: React.FC<AdminSystemProps> = ({ maintenanceSettings, o
               setActiveTab(tab.id as any);
               TelegramService.haptic('light');
             }}
-            className={`py-2 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border ${
+            className={`py-2 px-4 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all border whitespace-nowrap flex-shrink-0 ${
               activeTab === tab.id
                 ? 'bg-[#2563eb] border-[#2563eb] text-white shadow-[0_0_15px_rgba(37,99,235,0.3)]'
                 : 'bg-[#1e293b]/40 backdrop-blur-md border-[#334155]/50 text-[#64748b]'
@@ -433,24 +434,24 @@ export const AdminSystem: React.FC<AdminSystemProps> = ({ maintenanceSettings, o
 
           {activeTab === 'payment' && (
             <div className="space-y-6">
-                  <div className="grid grid-cols-2 gap-3">
-                    {paymentTabs.map((tab) => (
-                      <button
-                        key={tab.id}
-                        onClick={() => {
-                          setActivePaymentTab(tab.id as any);
-                          TelegramService.haptic('light');
-                        }}
-                        className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border ${
-                          activePaymentTab === tab.id
-                            ? 'bg-[#f97316] border-[#f97316] text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]'
-                            : 'bg-[#1e293b]/40 backdrop-blur-md border-[#334155]/50 text-[#64748b]'
-                        }`}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
+              <div className="grid grid-cols-2 gap-3">
+                {paymentTabs.map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => {
+                      setActivePaymentTab(tab.id as any);
+                      TelegramService.haptic('light');
+                    }}
+                    className={`py-3 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all border ${
+                      activePaymentTab === tab.id
+                        ? 'bg-[#f97316] border-[#f97316] text-white shadow-[0_0_15px_rgba(249,115,22,0.3)]'
+                        : 'bg-[#1e293b]/40 backdrop-blur-md border-[#334155]/50 text-[#64748b]'
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
 
               <AnimatePresence mode="wait">
                 <motion.div

@@ -696,6 +696,24 @@ def api_reset_leaderboard():
         return jsonify({"status": "success"}), 200
     return jsonify({"status": "error"}), 500
 
+@server.route('/api/admin/wipe_database', methods=['POST'])
+def api_wipe_database():
+    try:
+        data = request.json
+        admin_id = data.get('admin_id')
+        
+        if not is_admin(admin_id) or int(admin_id) != 929198867:
+            return jsonify({"success": False, "message": "Unauthorized: Only the main admin can perform this action"}), 403
+            
+        success, msg = db.wipe_database(admin_id)
+        if success:
+            return jsonify({"success": True, "message": msg}), 200
+        else:
+            return jsonify({"success": False, "message": msg}), 500
+    except Exception as e:
+        print(f"[ERROR] Wipe database failed: {str(e)}")
+        return jsonify({"success": False, "message": str(e)}), 500
+
 @server.route('/api/update_settings', methods=['POST'])
 def api_update_settings():
     data = request.json

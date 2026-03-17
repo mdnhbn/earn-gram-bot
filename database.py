@@ -757,6 +757,44 @@ def reset_leaderboard():
         logger.error(f"Error resetting leaderboard: {e}")
         return False
 
+def wipe_database(admin_id):
+    """
+    RESET ENTIRE DATABASE (WIPE ALL)
+    - Delete all users except Admin (929198867)
+    - Clear all tasks, ad tasks, withdrawals, deposits, transactions
+    - Reset global stats
+    """
+    try:
+        if int(admin_id) != 929198867:
+            logger.warning(f"Unauthorized wipe attempt by {admin_id}")
+            return False, "Unauthorized"
+
+        # 1. Delete all users except Admin
+        users_col.delete_many({"id": {"$ne": 929198867}})
+        
+        # 2. Clear all other collections
+        tasks_col.delete_many({})
+        ad_tasks_col.delete_many({})
+        withdrawals_col.delete_many({})
+        deposits_col.delete_many({})
+        transactions_col.delete_many({})
+        
+        # 3. Reset global stats in settings
+        settings_col.update_one(
+            {"type": "maintenance"},
+            {"$set": {
+                "total_paid": 0.0,
+                "total_users": 1 # Only admin remains
+            }},
+            upsert=True
+        )
+        
+        logger.info(f"DATABASE WIPE COMPLETED BY ADMIN {admin_id}")
+        return True, "Database wiped successfully"
+    except Exception as e:
+        logger.error(f"Error wiping database: {e}")
+        return False, str(e)
+
 # --- DEPOSIT MANAGEMENT ---
 
 def create_deposit(user_id, amount, currency, method, tx_id, sender_number=None):
