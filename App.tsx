@@ -212,7 +212,7 @@ const App: React.FC = () => {
     
     // Fallback if not found locally, create a temp one with real Telegram data
     return {
-        id: tgUser?.id || 0,
+        id: Number(tgUser?.id || 0),
         username: tgUser?.username || `user_${tgUser?.id || 'guest'}`,
         fullName: tgUser?.first_name ? `${tgUser.first_name} ${tgUser.last_name || ''}`.trim() : (tgUser?.username || `User ${tgUser?.id || 'Guest'}`),
         balanceRiyal: 0,

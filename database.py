@@ -66,7 +66,8 @@ def create_user(tg_user, inviter_id=None):
     """Initialize a new user or return existing."""
     try:
         # tg_user can be a dict or an object
-        user_id = tg_user.get('id') if isinstance(tg_user, dict) else tg_user.id
+        raw_id = (tg_user.get('id') or tg_user.get('user_id')) if isinstance(tg_user, dict) else tg_user.id
+        user_id = int(raw_id)
         username = tg_user.get('username') if isinstance(tg_user, dict) else tg_user.username
         first_name = tg_user.get('first_name') if isinstance(tg_user, dict) else (tg_user.first_name if hasattr(tg_user, 'first_name') else None)
         last_name = tg_user.get('last_name') if isinstance(tg_user, dict) else (tg_user.last_name if hasattr(tg_user, 'last_name') else None)
@@ -99,11 +100,11 @@ def create_user(tg_user, inviter_id=None):
             # Update inviter count and award signup commission
             if new_user["invitedBy"]:
                 inviter_id = new_user["invitedBy"]
-                users_col.update_one({"id": inviter_id}, {"$inc": {"referrals": 1, "balanceRiyal": SIGNUP_COMMISSION, "totalEarningsRiyal": SIGNUP_COMMISSION}})
+                users_col.update_one({"id": int(inviter_id)}, {"$inc": {"referrals": 1, "balanceRiyal": SIGNUP_COMMISSION, "totalEarningsRiyal": SIGNUP_COMMISSION}})
                 
                 # Log transaction for inviter
                 transactions_col.insert_one({
-                    "userId": inviter_id,
+                    "userId": int(inviter_id),
                     "amount": SIGNUP_COMMISSION,
                     "type": "EARNING",
                     "description": f"Signup Commission from {user_id}",
@@ -128,7 +129,7 @@ def add_strike(user_id):
         is_banned = new_warnings >= 3
         
         users_col.update_one(
-            {"id": user_id},
+            {"id": int(user_id)},
             {"$set": {"warningCount": new_warnings, "isBanned": is_banned}}
         )
         logger.info(f"Added strike to user {user_id}. Total warnings: {new_warnings}. Banned: {is_banned}")
@@ -146,7 +147,7 @@ def update_user_profile(user_id, profile_data):
         update_payload = {k: v for k, v in profile_data.items() if k in allowed_fields}
         update_payload["isRegistered"] = True
         
-        result = users_col.update_one({"id": user_id}, {"$set": update_payload})
+        result = users_col.update_one({"id": int(user_id)}, {"$set": update_payload})
         if result.modified_count > 0:
             logger.info(f"Updated profile for user {user_id}: {update_payload}")
             return True, "Profile updated successfully"
@@ -163,7 +164,7 @@ def process_reward(user_id, amount_riyal, task_name="Video Task"):
         
         # 1. Update primary user
         users_col.update_one(
-            {"id": user_id},
+            {"id": int(user_id)},
             {
                 "$inc": {
                     "balanceRiyal": amount_riyal,
@@ -196,7 +197,7 @@ def process_reward(user_id, amount_riyal, task_name="Video Task"):
                 
             commission = amount_riyal * pct
             users_col.update_one(
-                {"id": parent_id},
+                {"id": int(parent_id)},
                 {
                     "$inc": {
                         "balanceRiyal": commission,
@@ -233,7 +234,7 @@ def deduct_balance(user_id, amount, currency="SAR", tx_type="PAYMENT", descripti
             return False, "Insufficient balance"
             
         # Deduct
-        users_col.update_one({"id": user_id}, {"$inc": {field: -amount}})
+        users_col.update_one({"id": int(user_id)}, {"$inc": {field: -amount}})
         
         # Log transaction
         transactions_col.insert_one({
@@ -263,7 +264,7 @@ def request_withdrawal(user_id, amount, method, address, currency="SAR"):
             return False, "Insufficient balance"
             
         withdrawal = {
-            "userId": user_id,
+            "userId": int(user_id),
             "amount": amount,
             "currency": currency,
             "method": method,
@@ -273,7 +274,7 @@ def request_withdrawal(user_id, amount, method, address, currency="SAR"):
         }
         
         # Deduct balance
-        users_col.update_one({"id": user_id}, {"$inc": {field: -amount}})
+        users_col.update_one({"id": int(user_id)}, {"$inc": {field: -amount}})
         # Record withdrawal
         withdrawals_col.insert_one(withdrawal)
         
@@ -396,7 +397,7 @@ def process_withdrawal_action(withdrawal_id, action):
         # If rejected, refund balance
         if action == "reject":
             field = "balanceRiyal" if withdrawal['currency'] == "SAR" else "balanceCrypto"
-            users_col.update_one({"id": withdrawal['userId']}, {"$inc": {field: withdrawal['amount']}})
+            users_col.update_one({"id": int(withdrawal['userId'])}, {"$inc": {field: withdrawal['amount']}})
             
         withdrawals_col.update_one(
             {"_id": ObjectId(withdrawal_id)},
@@ -541,7 +542,7 @@ def sync_security(user_id, device_id, ip):
         if not current_user.get("deviceId"):
             update_data["deviceId"] = device_id
 
-        users_col.update_one({"id": user_id}, {"$set": update_data})
+        users_col.update_one({"id": int(user_id)}, {"$set": update_data})
         return True, "Security synced"
     except Exception as e:
         logger.error(f"Error syncing security for user {user_id}: {e}")
@@ -728,7 +729,7 @@ def update_user_balance(user_id, amount, currency="SAR", tx_type="ADJUSTMENT", d
         
         # Update balance
         users_col.update_one(
-            {"id": user_id},
+            {"id": int(user_id)},
             {"$inc": {field: float(amount)}}
         )
         
@@ -844,7 +845,7 @@ def approve_deposit(deposit_id):
         
         # Credit user
         field = "balanceRiyal" if currency == "SAR" else "balanceCrypto"
-        users_col.update_one({"id": user_id}, {"$inc": {field: amount}})
+        users_col.update_one({"id": int(user_id)}, {"$inc": {field: amount}})
         
         # Log transaction
         transactions_col.insert_one({

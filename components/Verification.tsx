@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { TelegramService } from '../services/telegram';
 import { fetchWithTimeout } from '../services/api';
 
@@ -10,8 +10,16 @@ interface VerificationProps {
 
 const Verification: React.FC<VerificationProps> = ({ channels, onVerify }) => {
   const [isChecking, setIsChecking] = useState(false);
-
   const [error, setError] = useState<string | null>(null);
+
+  // Admin Bypass: Admin ID 929198867 can always skip
+  useEffect(() => {
+    const user = TelegramService.getUser();
+    if (user && user.id === 929198867) {
+      console.log('Admin detected: Bypassing verification screen');
+      onVerify();
+    }
+  }, [onVerify]);
 
   const handleJoin = (channel: string) => {
     try {
@@ -33,21 +41,25 @@ const Verification: React.FC<VerificationProps> = ({ channels, onVerify }) => {
 
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
-      const userId = TelegramService.getUser().id;
+      const userId = Number(TelegramService.getUser().id);
       
       const response = await fetchWithTimeout(`${apiUrl}/api/verify?user_id=${userId}`);
       const data = await response.json();
 
       if (response.ok && data.status === 'success') {
-        TelegramService.showAlert('Verification successful!');
+        TelegramService.showAlert('✅ Verification successful! Welcome to EarnGram.');
         onVerify();
       } else {
-        setError(data.message || 'You haven\'t joined all channels yet!');
+        const msg = data.message || '❌ Access Denied: You must join ALL channels to unlock earning features.';
+        setError(msg);
+        TelegramService.showAlert(msg);
         TelegramService.haptic('heavy');
       }
     } catch (error) {
       console.error('Verification API error:', error);
-      setError('Server busy, try again later');
+      const serverMsg = '⚠️ Server busy, try again later';
+      setError(serverMsg);
+      TelegramService.showAlert(serverMsg);
       TelegramService.haptic('heavy');
     } finally {
       setIsChecking(false);

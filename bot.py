@@ -92,7 +92,12 @@ def api_init_user():
         # Extract inviter_id from start_param if present
         inviter_id = data.get('inviter_id')
         
-        user = db.create_user(data, inviter_id)
+        # Auto-User Creation: Ensure user profile exists
+        user = db.get_user(user_id)
+        if not user:
+            print(f"[DEBUG] User {user_id} not found, creating profile...")
+            user = db.create_user(data, inviter_id)
+        
         if user and '_id' in user:
             user['_id'] = str(user['_id'])
             
@@ -101,6 +106,10 @@ def api_init_user():
         if stats:
             # Merge user data with stats
             user.update(stats)
+        
+        # Admin Bypass: Ensure admin is always verified
+        if is_admin(user_id):
+            user['isVerified'] = True
             
         return jsonify({"success": True, "user": user})
     except Exception as e:
@@ -639,21 +648,34 @@ def api_daily_bonus():
 
 @server.route('/api/verify', methods=['GET'])
 def api_verify():
-    user_id = request.args.get('user_id')
-    if not user_id:
-        return jsonify({"status": "error", "message": "Missing user_id"}), 400
-    
-    # Security Bypass for Admin
-    if is_admin(user_id):
-        db.users_col.update_one({"id": int(user_id)}, {"$set": {"isVerified": True}})
-        return jsonify({"status": "success", "message": "Admin bypass active"}), 200
-    
-    if is_subscribed(int(user_id)):
-        # Update user verification status in DB
-        db.users_col.update_one({"id": int(user_id)}, {"$set": {"isVerified": True}})
-        return jsonify({"status": "success", "message": "Verification successful"}), 200
-    
-    return jsonify({"status": "error", "message": "You haven't joined all channels yet!"}), 400
+    try:
+        user_id_raw = request.args.get('user_id')
+        if not user_id_raw:
+            return jsonify({"status": "error", "message": "Missing user_id"}), 400
+        
+        user_id = int(user_id_raw)
+        
+        # Admin Bypass: Admin ID 929198867 can always skip
+        if user_id == 929198867:
+            db.users_col.update_one({"id": user_id}, {"$set": {"isVerified": True}})
+            return jsonify({"status": "success", "message": "Admin bypass active"}), 200
+        
+        # Ensure user exists in the database
+        user = db.get_user(user_id)
+        if not user:
+            return jsonify({"status": "error", "message": "User does not exist. Please restart the app."}), 404
+        
+        # Live check for all channels saved in the database
+        if is_subscribed(user_id):
+            # Update user entity isVerified: true
+            db.users_col.update_one({"id": user_id}, {"$set": {"isVerified": True}})
+            return jsonify({"status": "success", "message": "Verification successful"}), 200
+        
+        # Specific error message requested by user
+        return jsonify({"status": "error", "message": "❌ Access Denied: You must join ALL channels to unlock earning features."}), 400
+    except Exception as e:
+        print(f"[ERROR] api_verify failed: {str(e)}")
+        return jsonify({"status": "error", "message": "Server error during verification"}), 500
 
 @server.route('/api/broadcast', methods=['POST'])
 def api_broadcast():
@@ -764,6 +786,11 @@ CHANNELS = ['@EarnGramNews', '@EarnGramSupport', '@EarnGramCrypto', '@EarnGramGl
 
 def is_subscribed(user_id):
     """Check if user joined all mandatory channels from settings."""
+    try:
+        user_id = int(user_id)
+    except:
+        return False
+        
     settings = db.get_maintenance_settings()
     channels = settings.get('verificationChannels', []) if settings else []
     
