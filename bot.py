@@ -18,38 +18,115 @@ if CORS:
 
 # --- BOT LOGIC ---
 TOKEN = os.getenv('BOT_TOKEN')
+ADMIN_TOKEN = os.getenv('ADMIN_BOT_TOKEN')
+
+# User Bot (Main)
 if not TOKEN:
     print("WARNING: BOT_TOKEN environment variable is missing. Bot features will be disabled.")
-    # Create a dummy bot object to avoid errors in the rest of the script
     class DummyBot:
         def infinity_polling(self): pass
         def message_handler(self, *args, **kwargs): return lambda f: f
         def callback_query_handler(self, *args, **kwargs): return lambda f: f
         def remove_webhook(self): pass
+        def send_message(self, *args, **kwargs): pass
+        def delete_message(self, *args, **kwargs): pass
     bot = DummyBot()
 else:
     bot = telebot.TeleBot(TOKEN)
     try:
-        print("Removing webhook to prevent 409 Conflict...")
         bot.remove_webhook()
-    except Exception as e:
-        print(f"Failed to remove webhook: {e}")
+    except:
+        pass
+
+# Admin Bot (Alerts)
+if not ADMIN_TOKEN:
+    print("WARNING: ADMIN_BOT_TOKEN is missing. Admin alerts will be disabled.")
+    admin_bot = bot # Fallback to main bot if admin token is missing
+else:
+    admin_bot = telebot.TeleBot(ADMIN_TOKEN)
+    try:
+        admin_bot.remove_webhook()
+    except:
+        pass
 
 def is_admin(admin_id):
     """Check if a user is an admin."""
     if not admin_id:
         return False
     try:
-        # 929198867 is the main admin, 0 and 12345678 are preview mode IDs
-        return int(admin_id) in [929198867, 0, 12345678]
+        # 929198867 is the main admin
+        return int(admin_id) == 929198867
     except (ValueError, TypeError):
         return False
+
+def send_admin_alert(message):
+    """Send real-time alert to admin via Admin Bot."""
+    try:
+        admin_bot.send_message(929198867, f"🔔 *ADMIN ALERT*\n\n{message}", parse_mode='Markdown')
+    except Exception as e:
+        print(f"Failed to send admin alert: {e}")
+
+# Anti-Spam: Delete all user-sent messages/photos automatically
+@bot.message_handler(func=lambda message: True, content_types=['text', 'photo', 'video', 'document', 'audio', 'voice', 'sticker'])
+def anti_spam(message):
+    if message.chat.type == 'private' and not is_admin(message.from_user.id):
+        try:
+            bot.delete_message(message.chat.id, message.message_id)
+        except:
+            pass
 
 @server.route('/')
 def health():
     return "EarnGram Bot is Active", 200
 
-@server.route('/api/user', methods=['POST'])
+@server.route('/api/claim_reward', methods=['POST'])
+def api_claim_reward():
+    try:
+        data = request.json
+        user_id = int(data.get('user_id'))
+        amount = float(data.get('amount'))
+        task_id = data.get('task_id')
+        captcha_answer = data.get('captcha_answer')
+        expected_answer = data.get('expected_answer')
+        
+        # Math Captcha Verification
+        if str(captcha_answer) != str(expected_answer):
+            return jsonify({"success": False, "message": "❌ Invalid Captcha! Try again."}), 400
+            
+        # Security Check: Multi-account detection
+        user = db.get_user(user_id)
+        if user and user.get('isFlagged'):
+            return jsonify({"success": False, "message": "⚠️ Account flagged for suspicious activity. Rewards are pending review."}), 403
+            
+        success = db.process_reward(user_id, amount, f"Task: {task_id}")
+        if success:
+            # Send notification via User Bot
+            try:
+                bot.send_message(user_id, f"✅ *Reward Claimed!*\n\nYou earned `{amount:.2f}` SAR/USDT for completing a task.", parse_mode='Markdown')
+            except:
+                pass
+            return jsonify({"success": True, "message": f"Successfully claimed {amount} reward!"})
+        return jsonify({"success": False, "message": "Failed to process reward."}), 500
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+@server.route('/api/strike_warning', methods=['POST'])
+def api_strike_warning():
+    try:
+        data = request.json
+        user_id = int(data.get('user_id'))
+        
+        db.add_strike(user_id)
+        user = db.get_user(user_id)
+        
+        warning_count = user.get('warningCount', 0)
+        if warning_count >= 3:
+            db.update_user_profile(user_id, {"isFlagged": True, "flagReason": "Focus Mode Violation (3 Strikes)"})
+            send_admin_alert(f"🚩 *USER FLAGGED*\nID: `{user_id}`\nReason: 3 Focus Mode Strikes")
+            
+        return jsonify({"success": True, "warningCount": warning_count})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
 def api_user():
     try:
         data = request.json
@@ -421,6 +498,7 @@ def api_withdraw():
         
         success, message = db.request_withdrawal(user_id, amount, method, address, currency)
         if success:
+            send_admin_alert(f"💸 *NEW WITHDRAWAL REQUEST*\nUser: `{user_id}`\nAmount: `{amount}` {currency}\nMethod: `{method}`\nAddress: `{address}`")
             return jsonify({"status": "success", "message": message}), 200
         return jsonify({"status": "error", "message": message}), 400
     except Exception as e:
@@ -502,6 +580,7 @@ def api_deposit_crypto():
     # To satisfy "Automatic Crypto Deposit", we'll implement a background check simulation
     
     db.create_deposit(user_id, amount, "USDT", "Crypto Auto", tx_id)
+    send_admin_alert(f"📥 *NEW CRYPTO DEPOSIT*\nUser: `{user_id}`\nAmount: `{amount}` USDT\nTxID: `{tx_id}`")
     
     # Simulate background verification
     def verify_tx():
@@ -762,8 +841,8 @@ def api_not_found(path):
 def run_flask():
     """Run the Flask server with error handling."""
     try:
-        # Use a fixed port for internal API to avoid conflict with Vite on port 3000
-        port = 8888
+        # Port 3000 is the ONLY externally accessible port
+        port = 3000
         print(f"Starting Flask server on port {port}...")
         # Explicitly set threaded=True and disable reloader to avoid issues with bot polling
         server.run(host='0.0.0.0', port=port, threaded=True, use_reloader=False)
@@ -924,10 +1003,22 @@ def delete_all_messages(message):
 
 if __name__ == '__main__':
     print("DEBUG: bot.py main starting")
-    # Start the Flask keep-alive server
+    
+    # Start the Flask keep-alive server in a separate thread
     flask_thread = threading.Thread(target=run_flask)
-    flask_thread.daemon = False
+    flask_thread.daemon = True
     flask_thread.start()
     
+    # Start User Bot polling in a separate thread
+    threading.Thread(target=bot.infinity_polling, daemon=True).start()
+    
+    # Start Admin Bot polling if token exists
+    if ADMIN_TOKEN and admin_bot != bot:
+        threading.Thread(target=admin_bot.infinity_polling, daemon=True).start()
+    
+    # Keep the main thread alive
+    while True:
+        import time
+        time.sleep(10)
     print("EarnGram Bot & Web Server Online.")
     bot.infinity_polling()

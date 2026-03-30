@@ -5,7 +5,7 @@ import { TelegramService } from '../services/telegram';
 
 interface ActiveTaskProps {
   task: Task | AdTask;
-  onClaim: () => void;
+  onClaim: (captchaAnswer: number, expectedAnswer: number) => void;
   onCancel: () => void;
   isPaused: boolean;
   onFocusSignal: (isLost: boolean, isManual?: boolean) => void;
@@ -31,7 +31,7 @@ const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaus
   useEffect(() => {
     // Listen for messages from the player.html iframe
     const handleMessage = (event: MessageEvent) => {
-      const { type } = event.data;
+      const { type, captchaAnswer, expectedAnswer } = event.data;
       
       if (type === 'FOCUS_LOST') {
         if (!isConfirmingRef.current) {
@@ -40,7 +40,7 @@ const ActiveTask: React.FC<ActiveTaskProps> = ({ task, onClaim, onCancel, isPaus
       } else if (type === 'FOCUS_GAINED') {
         onFocusSignal(false);
       } else if (type === 'CLAIM_TASK') {
-        onClaim();
+        onClaim(captchaAnswer, expectedAnswer);
       }
     };
 

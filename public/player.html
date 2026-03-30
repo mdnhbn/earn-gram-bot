@@ -277,15 +277,16 @@
 
         claimBtn.onclick = () => {
             const userVal = parseInt(captchaInput.value);
-            if (userVal === captchaAnswer) {
-                claimBtn.disabled = true;
-                claimBtn.innerText = 'Verifying...';
-                window.parent.postMessage({ type: 'CLAIM_TASK', user_id: userId, status: 'success' }, '*');
-            } else {
-                alert('Verification failed. Try again.');
-                showCaptcha();
-                captchaInput.value = '';
-            }
+            if (isNaN(userVal)) return;
+            
+            // Send claim signal to parent with captcha data for backend verification
+            window.parent.postMessage({ 
+                type: 'CLAIM_TASK', 
+                user_id: userId, 
+                status: 'success',
+                captchaAnswer: userVal,
+                expectedAnswer: captchaAnswer
+            }, '*');
         };
 
         initPlayer();

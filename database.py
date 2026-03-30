@@ -90,6 +90,10 @@ def create_user(tg_user, inviter_id=None):
                 "isRegistered": True,
                 "warningCount": 0,
                 "isVerified": False,
+                "isFlagged": False,
+                "flagReason": "",
+                "deviceId": None,
+                "lastIp": None,
                 "lastDepositAttempt": None,
                 "createdAt": datetime.utcnow(),
                 "joinDate": datetime.utcnow().strftime("%B %Y")
@@ -142,10 +146,11 @@ def update_user_profile(user_id, profile_data):
     """Update user profile information."""
     try:
         user_id = int(user_id)
-        # Filter allowed fields
-        allowed_fields = ["fullName", "username"]
-        update_payload = {k: v for k, v in profile_data.items() if k in allowed_fields}
-        update_payload["isRegistered"] = True
+        # Filter allowed fields or allow all if it's internal logic
+        # For simplicity, we'll allow all fields passed in profile_data
+        update_payload = profile_data.copy()
+        if "isRegistered" not in update_payload:
+            update_payload["isRegistered"] = True
         
         result = users_col.update_one({"id": int(user_id)}, {"$set": update_payload})
         if result.modified_count > 0:

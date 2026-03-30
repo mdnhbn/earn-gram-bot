@@ -581,7 +581,7 @@ const App: React.FC = () => {
     handleStartExecution(boostTask);
   };
 
-  const handleClaimExecution = async () => {
+  const handleClaimExecution = async (captchaAnswer: number, expectedAnswer: number) => {
     if (!currentUser?.id || currentUser.id === 0 || !executionTask || !executionStartTime) {
       if (currentUser.id === 0) {
         TelegramService.showAlert('Error: User ID missing. Please reload the app from Telegram.');
@@ -592,52 +592,38 @@ const App: React.FC = () => {
     
     try {
       const apiUrl = import.meta.env.VITE_API_URL || '';
-      const response = await fetchWithTimeout(`${apiUrl}/api/update_balance`, {
+      const response = await fetchWithTimeout(`${apiUrl}/api/claim_reward`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           user_id: currentUser.id,
           amount: executionTask.rewardRiyal,
-          task_name: `${isBoostTask ? 'Boost' : 'Task'}: ${executionTask.title}`
+          task_id: executionTask.id,
+          captcha_answer: captchaAnswer,
+          expected_answer: expectedAnswer
         })
       });
       
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && data.user) {
-          const updatedUser = data.user;
-          const updatedUsers = users.map((u) => u.id === currentUser.id ? {
-            ...u,
-            balanceRiyal: updatedUser.balanceRiyal,
-            balanceCrypto: updatedUser.balanceCrypto,
-            totalEarningsRiyal: updatedUser.totalEarningsRiyal,
-            lastBoostClaim: isBoostTask ? new Date().toISOString() : u.lastBoostClaim
-          } : u);
-          setUsers(updatedUsers);
-          saveUsers(updatedUsers);
-          TelegramService.showAlert('Reward claimed successfully!');
-        }
+      const data = await response.json();
+      if (response.ok && data.success) {
+        // Fetch latest stats to ensure local state is perfect
+        fetchLiveStats(true);
+        
+        TelegramService.haptic('medium');
+        TelegramService.showAlert('✅ Reward claimed successfully!');
+        
+        setExecutionTask(null);
+        setExecutionStartTime(null);
+        setStrikesBeforeTask(null);
+        saveActiveTask(null, null);
+        setCurrentTab('home');
+      } else {
+        TelegramService.showAlert(data.message || 'Failed to claim reward.');
       }
     } catch (error) {
-      console.error('Failed to update balance on server:', error);
-      // Fallback to local update if server fails
-      const updatedUsers = users.map((u) => u.id === currentUser.id ? {
-        ...u,
-        balanceRiyal: u.balanceRiyal + executionTask.rewardRiyal,
-        balanceCrypto: u.balanceCrypto + (executionTask.rewardCrypto || 0),
-        totalEarningsRiyal: u.totalEarningsRiyal + executionTask.rewardRiyal,
-        lastBoostClaim: isBoostTask ? new Date().toISOString() : u.lastBoostClaim
-      } : u);
-      setUsers(updatedUsers);
-      saveUsers(updatedUsers);
+      console.error('Failed to claim reward:', error);
+      TelegramService.showAlert('❌ Connection error. Please try again.');
     }
-
-    addTransaction(currentUser.id, executionTask.rewardRiyal, 'SAR', 'EARNING', `${isBoostTask ? 'Boost' : 'Task'}: ${executionTask.title}`);
-
-    setExecutionTask(null);
-    setExecutionStartTime(null);
-    setStrikesBeforeTask(null);
-    TelegramService.showAlert('Reward claimed successfully!');
   };
 
   const handleCancelExecution = () => {
@@ -873,21 +859,44 @@ const App: React.FC = () => {
     }
   };
 
-  const handleViolation = () => {
+  const handleViolation = async () => {
     if (!currentUser?.id) return;
     setIsPaused(true);
-    setUsers(prevUsers => {
-      const updated = prevUsers.map((u) => {
-        if (u.id === currentUser.id) {
-          const warningCount = (u.warningCount || 0) + 1;
-          return { ...u, warningCount, isBanned: warningCount >= 3 };
-        }
-        return u;
+    
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${apiUrl}/api/strike_warning`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: currentUser.id })
       });
-      saveUsers(updated);
-      return updated;
-    });
-    TelegramService.showAlert('Violation strike added!');
+      if (res.ok) {
+        const data = await res.json();
+        // Update local warning count
+        setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, warningCount: data.warningCount, isFlagged: data.warningCount >= 3 } : u));
+        
+        if (data.warningCount >= 3) {
+          TelegramService.showAlert('⚠️ Account flagged for security violations (3 Focus Strikes).');
+        } else {
+          TelegramService.showAlert(`⚠️ STRIKE WARNING: Timer paused! Return to the app to continue earning. (${data.warningCount}/3)`);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to send strike warning:', e);
+      // Fallback local update
+      setUsers(prevUsers => {
+        const updated = prevUsers.map((u) => {
+          if (u.id === currentUser.id) {
+            const warningCount = (u.warningCount || 0) + 1;
+            return { ...u, warningCount, isFlagged: warningCount >= 3 };
+          }
+          return u;
+        });
+        saveUsers(updated);
+        return updated;
+      });
+      TelegramService.showAlert('Violation strike added!');
+    }
   };
 
   const handleAddTask = async (task: Task, cost?: number, currency?: 'SAR' | 'USDT') => {
